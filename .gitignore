@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Local state. data/ holds nightshift.db, which contains your API keys in the
+# settings table plus every company's tasks, emails and generated site. Never commit it.
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Noise
+.DS_Store
+*.log
