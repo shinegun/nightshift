@@ -14,7 +14,10 @@ export function App() {
   useLive(null, load);
 
   const page = route[0] === 'c' && route[1] ? 'dashboard' : route[0] === 'settings' ? 'settings' : 'home';
-  const over = state && state.budget > 0 && state.spentToday >= state.budget;
+  // Either cap stops the agents, so either one should turn the meter red.
+  const over = state
+    && ((state.budget > 0 && state.spentToday >= state.budget)
+      || (state.monthlyBudget > 0 && state.spentThisMonth >= state.monthlyBudget));
 
   return (
     <div className="shell">
@@ -25,9 +28,18 @@ export function App() {
           <a href="#/settings" className={page === 'settings' ? 'active' : ''}>Settings</a>
         </div>
         {state && (
-          <div className={`spend ${over ? 'over' : ''}`} title="AI spend today vs. your daily budget">
+          <div className={`spend ${over ? 'over' : ''}`} title="Model tokens spent today vs. your daily budget — this is the figure that pauses work when it's reached">
             <span className="mono">{state.night ? '☾ night' : '☀ day'}</span>
-            <span className="mono">{usd(state.spentToday)} / {state.budget > 0 ? usd(state.budget) : '∞'}</span>
+            <span className="mono" title="Model tokens only — X posts and subscriptions aren't part of these budgets">
+              tokens {usd(state.spentToday)} / {state.budget > 0 ? usd(state.budget) : '∞'}
+              {state.monthlyBudget > 0 && ` · ${usd(state.spentThisMonth)} / ${usd(state.monthlyBudget)} mo`}
+            </span>
+            {state.opex && (
+              <span className={`mono ${state.opex.cap > 0 && state.opex.month > state.opex.cap ? 'over' : ''}`}
+                title="Everything this month — model tokens, X posts and subscriptions — against your monthly ceiling">
+                mo {usd(state.opex.month)}{state.opex.cap > 0 ? ` / ${usd(state.opex.cap)}` : ''}
+              </span>
+            )}
           </div>
         )}
       </nav>

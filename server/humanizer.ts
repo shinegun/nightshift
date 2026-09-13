@@ -1,7 +1,8 @@
 import type { Company } from './db.ts';
 import { companySetting, flag, setting } from './settings.ts';
 import { chat } from './llm.ts';
-import { htmlToText } from './util.ts';
+import { activity } from './events.ts';
+import { errMsg, htmlToText } from './util.ts';
 
 // The humanizer: everything agents write for people should read like a person wrote it.
 // 1. A writing guide in every prompt (free).
@@ -128,7 +129,10 @@ export async function humanize(text: string, purpose: string, c?: Company): Prom
     });
     const out = (reply.content ?? '').trim();
     return out && findAITells(out).length < tells.length ? out : text;
-  } catch {
+  } catch (e) {
+    // The rewrite is the one part of the humanizer that needs the AI. Say so when it cannot run,
+    // rather than quietly publishing text the detector already flagged.
+    if (c) activity(c.id, `> Writing check skipped on ${purpose} (${errMsg(e)})`);
     return text;
   }
 }

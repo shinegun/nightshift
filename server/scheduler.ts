@@ -1,7 +1,7 @@
 import { all, get, type AdCampaign, type Company, type Task, companyById, now, run } from './db.ts';
 import { flag, num, setSetting, setting } from './settings.ts';
 import { emit } from './events.ts';
-import { spentToday } from './llm.ts';
+import { budgetStop, spentToday } from './llm.ts';
 import { pollInbox } from './integrations/email.ts';
 import { syncRevenue } from './integrations/stripe.ts';
 import { fetchInsights, type MetaIds } from './integrations/meta.ts';
@@ -15,7 +15,18 @@ export function isNight(hour: number) {
   return start <= end ? hour >= start && hour < end : hour >= start || hour < end;
 }
 
-const budgetLeft = () => num('daily_budget_usd') <= 0 || spentToday() < num('daily_budget_usd');
+const budgetLeft = () => budgetStop() === null;
+
+/**
+ * Night work runs tasks back to back with no gap, so on a tight cap it empties the whole day's
+ * budget in its first hour: the morning report then has nothing to write with, and Auto Mode has
+ * nothing left to work with. Keep a slice of the day back for them.
+ */
+const nightBudgetLeft = () => {
+  const cap = num('daily_budget_usd');
+  const share = Math.min(Math.max(num('night_budget_share'), 0), 1);
+  return budgetLeft() && (cap <= 0 || share >= 1 || spentToday() < cap * share);
+};
 
 let ticking = false;
 
@@ -27,8 +38,10 @@ async function tick() {
     const companies = all<Company>(`SELECT * FROM companies WHERE status = 'live'`);
     const night = isNight(hour);
 
-    // Morning reports (once per day, after report_hour, skipping companies born in the last 12h)
-    if (hour >= num('report_hour') && !night && budgetLeft()) {
+    // Morning reports (once per day, after report_hour, skipping companies born in the last 12h).
+    // Deliberately NOT gated on budgetLeft(): the report is how the owner learns the day stopped,
+    // and morningReport() falls back to a facts-only summary when the AI call is refused.
+    if (hour >= num('report_hour') && !night) {
       for (const c of companies) {
         if (Date.now() - Date.parse(c.created_at) < 12 * 3_600_000) continue;
         if (get('SELECT id FROM reports WHERE company_id = ? AND day = ?', c.id, day)) continue;
@@ -47,7 +60,7 @@ async function tick() {
     }
 
     // Work the queue: one task per tick, round-robin by least recently worked company
-    if (!budgetLeft()) return;
+    if (night ? !nightBudgetLeft() : !budgetLeft()) return;
     const gapMs = num('auto_mode_gap_min') * 60_000;
     const eligible = companies
       .filter((c) => (night && c.night_mode) || c.auto_mode)

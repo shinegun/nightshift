@@ -9,18 +9,20 @@ import { basicAuth } from 'hono/basic-auth';
 import { streamSSE } from 'hono/streaming';
 import {
   DATA_DIR, all, companyBySlug, db, get, now, run,
-  type AdCampaign, type Company, type Doc, type Email, type Request, type Task, type Tweet,
+  type AdCampaign, type Company, type Doc, type Email, type Expense, type Request, type Task, type Tweet,
 } from './db.ts';
 import { COMPANY_KEYS, SECRET_KEYS, companyConfig, flag, num, publicSettings, setting, updateSettings } from './settings.ts';
 import { activity, emit, subscribe } from './events.ts';
-import { listModels, spentToday, testLLM } from './llm.ts';
+import { listModels, spentThisMonth, spentToday, testLLM } from './llm.ts';
 import { TRACKER_JS, injectTracker, listFiles, listVersions, restoreVersion, safePath, siteDir } from './sites.ts';
+import { publishPlan, summarize } from './publish.ts';
 import { webSearch } from './integrations/search.ts';
-import { testEmail, testImap } from './integrations/email.ts';
+import { companyAddress, testEmail, testImap } from './integrations/email.ts';
 import { deploySite, testVercel } from './integrations/vercel.ts';
 import { createPaymentLink, testStripe } from './integrations/stripe.ts';
 import { testX } from './integrations/x.ts';
 import { testMeta } from './integrations/meta.ts';
+import { opex, opexSummary } from './costs.ts';
 import { deliverEmail, deliverTweet, queueAd, queueEmail, queueTweet, setAdStatus } from './actions.ts';
 import { bootstrap, createCompany } from './agents/bootstrap.ts';
 import { chatWithCofounder } from './agents/chat.ts';
@@ -140,7 +142,10 @@ const isRunning = (companyId: number) => Boolean(get(`SELECT id FROM tasks WHERE
 api.get('/state', (c) => c.json({
   companies: all<Company>('SELECT * FROM companies ORDER BY updated_at DESC').map((co) => ({ ...strip(co), metrics: companyMetrics(co) })),
   spentToday: spentToday(),
+  spentThisMonth: spentThisMonth(),
+  opex: opexSummary(),
   budget: num('daily_budget_usd'),
+  monthlyBudget: num('monthly_budget_usd'),
   llmConfigured: Boolean(setting('llm_api_key')),
   model: setting('llm_model'),
   schedulerPaused: flag('scheduler_paused'),
@@ -148,6 +153,33 @@ api.get('/state', (c) => c.json({
   issues: openIssues(),
   syncedAt: setting('synced_at'),
 }));
+
+// OpEx — the cost side, for the meter and Settings → OpEx. Metered lines (tokens, X posts) are
+// counted from what the app did; subscriptions are entered by the owner.
+
+api.get('/opex', (c) => c.json({ ...opex(), companies: all<{ id: number; slug: string; name: string }>('SELECT id, slug, name FROM companies ORDER BY id') }));
+
+api.post('/expenses', async (c) => {
+  const b = await body(c);
+  const name = String(b.name ?? '').trim();
+  if (!name) throw bad('Give it a name — e.g. "safastack.com domain".');
+  const amount = Number(b.amount);
+  if (!Number.isFinite(amount) || amount < 0) throw bad('Amount must be a number (USD) — e.g. 0.99.');
+  const period = ['month', 'year', 'once'].includes(String(b.period)) ? String(b.period) : 'month';
+  const companyId = b.companyId == null || b.companyId === '' ? null : Number(b.companyId);
+  const id = run(
+    'INSERT INTO expenses (name, amount_usd, period, company_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    name.slice(0, 80), amount, period, companyId, String(b.note ?? '').slice(0, 200), now(),
+  ).id;
+  emit('opex');
+  return c.json({ id });
+});
+
+api.delete('/expenses/:id', (c) => {
+  run('DELETE FROM expenses WHERE id = ?', Number(c.req.param('id')));
+  emit('opex');
+  return c.json({ ok: true });
+});
 
 // Companies
 
@@ -196,6 +228,7 @@ api.get('/companies/:slug', (c) => {
     waitlist: all('SELECT email, created_at FROM waitlist WHERE company_id = ? ORDER BY id DESC LIMIT 50', co.id),
     versions: listVersions(co.slug),
     files: listFiles(co.slug),
+    publish: publishPlan(co),
     previewUrl: `/s/${co.slug}/`,
     publicBaseUrl: setting('public_base_url'),
     running: tasks.some((t) => t.status === 'running'),
@@ -528,11 +561,21 @@ api.post('/companies/:slug/payment-links', async (c) => {
 
 // Website
 
+/** What a deploy would publish right now, and what it would leave out. */
+api.get('/companies/:slug/publish', (c) => {
+  const co = mustCompany(c);
+  return c.json(publishPlan(co));
+});
+
 api.post('/companies/:slug/deploy', async (c) => {
   const co = mustCompany(c);
-  const r = await deploySite(co);
-  activity(co.id, `> Website deployed: ${r.url}`);
-  return c.json(r);
+  const r = await deploySite(co, { force: false });
+  activity(co.id, `> Website deployed: ${r.url} — ${summarize(r.plan)}`);
+  emit('site', co.id);
+  return c.json({
+    url: r.url, deploymentId: r.deploymentId, published: r.published, skipped: r.skipped, bytes: r.bytes,
+    warnings: r.plan.warnings, publishedPaths: r.plan.files.map((f) => f.path),
+  });
 });
 
 api.post('/companies/:slug/versions/:version/restore', (c) => {
@@ -549,7 +592,22 @@ const settingsPayload = () => ({ ...publicSettings(), health: integrationHealth(
 api.get('/settings', (c) => c.json(settingsPayload()));
 api.put('/settings', async (c) => {
   const patch = await body(c);
+  const before = setting('email_from');
   updateSettings(patch);
+  // Company addresses are derived from "Send from". When it changes, refresh the ones the
+  // platform generated (empty, or still the old derived form) so no company keeps an address
+  // that no longer routes. Addresses the owner typed themselves are left alone.
+  if (Object.prototype.hasOwnProperty.call(patch, 'email_from') && setting('email_from') !== before) {
+    for (const co of all<Company>('SELECT * FROM companies')) {
+      const derived = companyAddress(co.slug, before).toLowerCase();
+      if (co.email && co.email.toLowerCase() !== derived) continue;
+      const next = companyAddress(co.slug, setting('email_from'));
+      if (!next || next === co.email) continue;
+      run('UPDATE companies SET email = ?, updated_at = ? WHERE id = ?', next, now(), co.id);
+      activity(co.id, `> Company address is now ${next} (Send-from changed)`);
+    }
+    emit('company');
+  }
   clearIssuesForSettings(Object.keys(patch)); // an edit may have fixed the last failure; the next attempt re-reports if not
   emit('settings');
   return c.json(settingsPayload());

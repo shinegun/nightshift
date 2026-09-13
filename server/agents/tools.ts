@@ -147,13 +147,21 @@ const TOOLS: Record<string, Tool> = {
     },
   },
   deploy_site: {
-    description: 'Deploy the current website to production on Vercel. Returns the public URL.',
+    description: 'Publish the website to production on Vercel. Only the files the site actually links are uploaded; tooling, internal notes and sample data stay private. Returns the public URL.',
     params: {}, limit: 2,
     run: async (_a, { company }) => {
       const fresh = get<Company>('SELECT * FROM companies WHERE id = ?', company.id)!;
-      const { url } = await deploySite(fresh);
+      const r = await deploySite(fresh);
       emit('site', company.id);
-      return `Deployed. Live at ${url}`;
+      const kb = (r.bytes / 1024).toFixed(1);
+      const held = r.skipped
+        ? ` Not published: ${r.skipped} file${r.skipped === 1 ? '' : 's'} in the folder that no page reaches (tooling, internal notes, sample data) — the Website panel lists each one with the reason.`
+        : '';
+      const gaps = r.plan.missing.length
+        ? ` A page asks for ${r.plan.missing.join(', ')} and it is not in the folder yet; the page handles that itself.`
+        : '';
+      const warn = r.plan.warnings.length ? ` Warnings: ${r.plan.warnings.join(' ')}` : '';
+      return `Deployed ${r.published} files (${kb} KB). Live at ${r.url}.${held}${gaps}${warn}`;
     },
   },
 

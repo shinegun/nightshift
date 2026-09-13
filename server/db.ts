@@ -181,6 +181,19 @@ CREATE TABLE IF NOT EXISTS activity (
   text TEXT NOT NULL
 );
 
+-- Recurring or one-off money the owner pays for outside the app: domain, hosting, APIs,
+-- prepaid top-ups that aren't metered per call. Metered costs (model tokens, X posts) are
+-- computed from usage/tweets instead of being entered here.
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  amount_usd REAL NOT NULL,
+  period TEXT NOT NULL DEFAULT 'month',
+  company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -249,6 +262,19 @@ if (!all<{ name: string }>('PRAGMA table_info(tasks)').some((col) => col.name ==
     WHERE t.id = tasks.id)`);
 }
 
+if (!all<{ name: string }>('PRAGMA table_info(tasks)').some((col) => col.name === 'messages')) {
+  // The agent conversation, kept only while a task is paused for budget. Without it, a task that
+  // runs out of budget at step 20 throws away everything it already paid for and starts over.
+  db.exec('ALTER TABLE tasks ADD COLUMN messages TEXT');
+}
+
+if (!all<{ name: string }>('PRAGMA table_info(tweets)').some((col) => col.name === 'posted_day')) {
+  // The local day a post went out. posted_at is UTC, so counting OpEx per local day/month from
+  // it would misfile posts made near midnight.
+  db.exec('ALTER TABLE tweets ADD COLUMN posted_day TEXT');
+  db.exec("UPDATE tweets SET posted_day = substr(posted_at, 1, 10) WHERE posted_at IS NOT NULL");
+}
+
 // ── Row types ──────────────────────────────────────────────────────────────
 
 export interface Company {
@@ -272,6 +298,8 @@ export interface Task {
   id: number; company_id: number; title: string; description: string; type: TaskType;
   status: TaskStatus; priority: number; position: number | null; source: string; result: string | null; error: string | null;
   steps: number; cost_usd: number; created_at: string; started_at: string | null; finished_at: string | null;
+  /** Saved agent conversation, set only while the task is paused for budget. */
+  messages: string | null;
 }
 
 export interface Doc {
@@ -290,6 +318,7 @@ export interface Tweet {
   id: number; company_id: number; text: string;
   status: 'pending_approval' | 'posted' | 'failed' | 'rejected';
   external_id: string | null; error: string | null; created_at: string; posted_at: string | null;
+  posted_day: string | null;
 }
 
 export interface AdCampaign {
@@ -298,5 +327,14 @@ export interface AdCampaign {
   external: string; insights: string | null; error: string | null; created_at: string; updated_at: string;
 }
 
+export interface Expense {
+  id: number; name: string; amount_usd: number; period: ExpensePeriod;
+  company_id: number | null; note: string; created_at: string;
+}
+
+/** month/year recur; 'once' is charged whole in the month it was entered. */
+export type ExpensePeriod = 'month' | 'year' | 'once';
+
 export const companyById = (id: number) => get<Company>('SELECT * FROM companies WHERE id = ?', id);
+
 export const companyBySlug = (slug: string) => get<Company>('SELECT * FROM companies WHERE slug = ?', slug);

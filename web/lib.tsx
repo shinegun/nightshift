@@ -118,6 +118,9 @@ export const Empty = ({ children }: { children: ReactNode }) => <p className="em
 export function HealthNote({ h, label, link = true, showReady = false }: { h?: Health; label: string; link?: boolean; showReady?: boolean }) {
   if (!h) return null;
   if (h.state === 'ready') return showReady ? <p className="health ready">✓ {label}: ready</p> : null;
+  // 'off' with no message means nothing is set up and nothing needs to be — stay quiet rather
+  // than warning about an integration the app isn't relying on.
+  if (h.state === 'off' && !h.message) return null;
   return (
     <p className={`health ${h.state}`} role={h.state === 'error' ? 'alert' : undefined}>
       <span aria-hidden>{h.state === 'error' ? '✗ ' : '⚠ '}</span>

@@ -79,6 +79,19 @@ export function imapHost() {
 export interface InboxPoll { filed: number; unrouted: { to: string; from: string; subject: string; at: string }[] }
 
 /**
+ * Which company an inbound message belongs to: its own configured address, or the
+ * derived +slug form on the send-from domain. Companies' own addresses win, so a
+ * clean alias (support@…) works as well as plus-addressing.
+ */
+export function companyForRecipients<T extends { slug: string; email: string }>(rcpts: string[], companies: T[]): T | undefined {
+  const list = rcpts.map((r) => r.toLowerCase());
+  return companies.find((c) => {
+    const addr = (c.email || companyAddress(c.slug)).toLowerCase();
+    return (addr && list.includes(addr)) || list.some((r) => r.includes(`+${c.slug}@`));
+  });
+}
+
+/**
  * Pull new mail over IMAP and file it under the company it was addressed to.
  * Mail to our domain that no company claims is returned as `unrouted` so it can be
  * reported — never dropped silently. Other mail in the mailbox is left alone.
@@ -116,10 +129,7 @@ export async function pollInbox(): Promise<InboxPoll> {
         const rcpts = [...addresses(parsed.to), ...addresses(parsed.cc)];
         const delivered = parsed.headers.get('delivered-to');
         if (typeof delivered === 'string') rcpts.push(delivered.toLowerCase());
-        const company = companies.find((c) => {
-          const addr = (c.email || companyAddress(c.slug)).toLowerCase();
-          return (addr && rcpts.includes(addr)) || rcpts.some((r) => r.includes(`+${c.slug}@`));
-        });
+        const company = companyForRecipients(rcpts, companies);
         const from = parsed.from?.value[0]?.address ?? '';
         const subject = parsed.subject ?? '(no subject)';
         if (!company) {
@@ -136,12 +146,20 @@ export async function pollInbox(): Promise<InboxPoll> {
         if (!r.changes) continue;
         count++;
         activity(company.id, `> New email from ${from}: "${subject}"`);
-        run(
-          `INSERT INTO tasks (company_id, title, description, type, priority, source, created_at) VALUES (?, ?, ?, 'support', 1, 'inbox', ?)`,
-          company.id, `Reply to ${from}: ${subject}`.slice(0, 140),
-          `A new email arrived (email id ${r.id}). Read it with read_inbox, decide whether it needs a reply, and reply helpfully with reply_email. If it is spam, do nothing.`,
-          now(),
-        );
+        // Nothing to answer in an automated sender or a transactional code, so filing it is
+        // enough — don't queue work that can only end in a pointless approval request.
+        const noReply = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|notifications?)([._+-]|@)/i.test(from)
+          || /(verification code|security code|one[- ]time (code|password)|\botp\b|sign[- ]?in code|confirm your e-?mail|password reset)/i.test(subject);
+        if (noReply) {
+          activity(company.id, '> (automated mail — filed, nothing to answer)');
+        } else {
+          run(
+            `INSERT INTO tasks (company_id, title, description, type, priority, source, created_at) VALUES (?, ?, ?, 'support', 1, 'inbox', ?)`,
+            company.id, `Reply to ${from}: ${subject}`.slice(0, 140),
+            `A new email arrived (email id ${r.id}). Read it with read_inbox, decide whether it needs a reply, and reply helpfully with reply_email. If it is spam, do nothing.`,
+            now(),
+          );
+        }
         emit('email', company.id);
       }
     }

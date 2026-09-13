@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { api, post } from './api.ts';
 import type { HealthKey, SettingsPayload } from './types.ts';
 import { HealthNote, toast, useAction, usd } from './lib.tsx';
+import { OpexPanel } from './Opex.tsx';
 
 interface Field {
   key: string; label: string; secret?: boolean; help?: string; type?: 'text' | 'number' | 'email' | 'url';
   options?: [string, string][]; placeholder?: string; showIf?: (v: Record<string, string>) => boolean; datalist?: boolean;
 }
-interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[] }
+interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[]; panel?: 'opex' }
 
 const BOOL: [string, string][] = [['true', 'Ask me first'], ['false', 'Let agents act on their own']];
 const HOURS = Array.from({ length: 24 }, (_, h) => [String(h), `${String(h).padStart(2, '0')}:00`] as [string, string]);
@@ -22,6 +23,8 @@ const SECTIONS: Section[] = [
       { key: 'llm_model', label: 'Model', datalist: true, help: 'Press “Load models” to list what your key can use.' },
       { key: 'llm_thinking', label: 'Thinking mode', options: [['default', 'Provider default'], ['enabled', 'On (smarter, slower)'], ['disabled', 'Off (faster, cheaper)']], help: 'DeepSeek-only parameter. Leave on “Provider default” for other providers.' },
       { key: 'daily_budget_usd', label: 'Daily budget (USD)', type: 'number', help: 'Agents stop for the day once estimated spend reaches this. 0 = no cap.' },
+      { key: 'monthly_budget_usd', label: 'Monthly budget (USD)', type: 'number', help: 'The ceiling that matches how you buy the API key. A $2 daily cap is $60 over a month, so set this too. 0 = no cap.' },
+      { key: 'night_budget_share', label: 'Share of the day Night Task may spend', type: 'number', help: 'Night runs tasks back to back. 0.8 keeps a fifth of the daily budget back for the morning report and Auto Mode. 1 = no reserve.' },
       { key: 'agent_max_steps', label: 'Max steps per task', type: 'number' },
       { key: 'price_input_miss', label: 'Price · input (per 1M tokens, USD)', type: 'number' },
       { key: 'price_input_hit', label: 'Price · cached input', type: 'number' },
@@ -76,10 +79,13 @@ const SECTIONS: Section[] = [
   { id: 'stripe', title: 'Stripe', test: 'stripe', intro: 'Agents create products and payment links; completed checkouts show up as revenue.', fields: [{ key: 'stripe_secret_key', label: 'Secret key', secret: true, help: 'Use a restricted key or sk_test_… while trying it out.' }] },
   {
     id: 'x', title: 'X (Twitter)', test: 'x',
-    intro: 'From developer.x.com: an app with Read and Write permission, then its API key/secret and your access token/secret.',
+    intro: 'Optional for the whole workspace — a company can post as its own X account instead (Company → X), and then these four values can stay empty. Posting needs all four OAuth 1.0a values: an app at developer.x.com with Read and write permission, its consumer key and secret (the portal labels this pair "API Key" and "API Key Secret", under Consumer Keys), and your own access token and access token secret. Generate the tokens after setting the permission — a token made while the app was read-only stays read-only. The bearer token is app-only: it reads public data but can never post as you.',
     fields: [
-      { key: 'x_api_key', label: 'API key', secret: true }, { key: 'x_api_secret', label: 'API key secret', secret: true },
-      { key: 'x_access_token', label: 'Access token', secret: true }, { key: 'x_access_secret', label: 'Access token secret', secret: true },
+      { key: 'x_api_key', label: 'Consumer key', secret: true, help: 'Keys and tokens → Consumer Keys → the value the portal calls "API Key".' },
+      { key: 'x_api_secret', label: 'Consumer secret', secret: true, help: 'Same section — the portal calls it "API Key Secret".' },
+      { key: 'x_access_token', label: 'Access token', secret: true, help: 'Keys and tokens → Access Token and Secret. Generate it after App permissions are set to Read and write.' },
+      { key: 'x_access_secret', label: 'Access token secret', secret: true, help: 'Same section — copy it together with the access token.' },
+      { key: 'x_bearer_token', label: 'Bearer token (optional)', secret: true, help: 'App-only. Fine to keep for read-only lookups; posting works without it and it cannot post on its own.' },
     ],
   },
   {
@@ -91,6 +97,14 @@ const SECTIONS: Section[] = [
       { key: 'meta_page_id', label: 'Page ID' },
       { key: 'ads_max_daily_budget', label: 'Max daily budget per campaign', type: 'number', help: "Hard cap in your ad account's currency. Agents can't exceed it." },
       { key: 'meta_api_version', label: 'Graph API version' },
+    ],
+  },
+  {
+    id: 'opex', title: 'OpEx', panel: 'opex',
+    intro: 'What this costs to run: model tokens and X posts are counted automatically, and you add everything else you pay for. One monthly number, so spend creep shows up early.',
+    fields: [
+      { key: 'opex_cap_usd', label: 'Monthly ceiling (USD)', type: 'number', help: 'Your own limit for everything above — the meter turns red past it. 0 = no ceiling.' },
+      { key: 'x_cost_per_post_usd', label: 'X cost per post (USD)', type: 'number', help: 'What X charges you for one published post. Check your plan — it varies.' },
     ],
   },
   {
@@ -155,7 +169,10 @@ export function Settings({ onSaved }: { onSaved: () => void }) {
   const test = (what: string) => run(`test-${what}`, async () => {
     if (dirty) await save();
     const r = await post<{ ok: boolean; result?: unknown; error?: string }>(`/settings/test/${what}`);
-    setResults((x) => ({ ...x, [what]: { ok: r.ok, text: r.ok ? JSON.stringify(r.result) : r.error ?? 'failed' } }));
+    const friendly = r.result && typeof r.result === 'object' && 'message' in (r.result as Record<string, unknown>)
+      ? String((r.result as { message: unknown }).message)
+      : JSON.stringify(r.result);
+    setResults((x) => ({ ...x, [what]: { ok: r.ok, text: r.ok ? friendly : r.error ?? 'failed' } }));
     await load(); // refresh the status lines with what the test just learned
   });
   const loadModels = () => run('models', async () => {
@@ -187,6 +204,7 @@ export function Settings({ onSaved }: { onSaved: () => void }) {
           </header>
           {s.intro && <p className="muted small">{s.intro}</p>}
           {(SECTION_HEALTH[s.id] ?? []).map(([k, label]) => <HealthNote key={k} h={data.health[k]} label={label} link={false} showReady />)}
+          {s.panel === 'opex' && <OpexPanel />}
           {(s.tests ?? (s.test ? [[s.test, '']] : [])).map(([what]) => results[what] && (
             <p key={what} className={results[what].ok ? 'ok small' : 'error small'}>{results[what].ok ? '✓ ' : '✗ '}{results[what].text}</p>
           ))}

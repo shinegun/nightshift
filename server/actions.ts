@@ -2,9 +2,9 @@ import { get, now, run, type AdCampaign, type Company, type Email, type Tweet, c
 import { flag, num, setting } from './settings.ts';
 import { activity, emit } from './events.ts';
 import { sendEmail, senderFor } from './integrations/email.ts';
-import { postTweet } from './integrations/x.ts';
+import { postTweet, explainXFailure } from './integrations/x.ts';
 import { createPausedCampaign, setCampaignStatus, type MetaIds } from './integrations/meta.ts';
-import { errMsg } from './util.ts';
+import { errMsg, localNow } from './util.ts';
 import { clearIssue, reportIssue } from './health.ts';
 
 // Every outward-facing action goes through here, so the approval gate and the
@@ -79,13 +79,13 @@ export async function deliverTweet(id: number) {
   const c = mustCompany(t.company_id);
   try {
     const { id: extId } = await postTweet(c, t.text);
-    run(`UPDATE tweets SET status = 'posted', external_id = ?, posted_at = ?, error = NULL WHERE id = ?`, extId, now(), id);
+    run(`UPDATE tweets SET status = 'posted', external_id = ?, posted_at = ?, posted_day = ?, error = NULL WHERE id = ?`, extId, now(), localNow().day, id);
     clearIssue('x', c);
     activity(c.id, '> Posted to X');
     emit('tweet', c.id);
     return { id, status: 'posted' as const };
   } catch (err) {
-    run(`UPDATE tweets SET status = 'failed', error = ? WHERE id = ?`, errMsg(err), id);
+    run(`UPDATE tweets SET status = 'failed', error = ? WHERE id = ?`, explainXFailure(errMsg(err)), id);
     reportIssue('x', err, c);
     emit('tweet', c.id);
     throw err;

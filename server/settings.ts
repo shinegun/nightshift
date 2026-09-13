@@ -12,6 +12,13 @@ export const DEFAULTS: Record<string, string> = {
   price_input_hit: '0.006',
   price_output: '1.20',
   daily_budget_usd: '2',
+  // An API key is bought by the month, so the daily cap alone cannot express the real ceiling:
+  // $2/day is $60 over a 30-day month. 0 turns the monthly cap off.
+  monthly_budget_usd: '0',
+  // How much of the daily cap night work may spend. The night window runs tasks back to back, so
+  // without a reserve it empties the day's budget in its first hour and leaves nothing for the
+  // morning report or for Auto Mode. 1 restores the old behaviour.
+  night_budget_share: '0.8',
   agent_max_steps: '25',
 
   // Research
@@ -49,6 +56,11 @@ export const DEFAULTS: Record<string, string> = {
   // Sites
   public_base_url: '',
 
+  // OpEx: what running this actually costs. Metered costs are counted from usage/tweets;
+  // subscriptions live in the expenses table.
+  x_cost_per_post_usd: '0.03', // what X charges per published post on your plan
+  opex_cap_usd: '10', // your own monthly ceiling — the meter turns red past it
+
   // Safety: outward-facing actions wait for your approval unless turned off
   approve_tweets: 'true',
   approve_emails: 'true',
@@ -73,15 +85,18 @@ export const SECRET_KEYS = new Set([
   'x_api_secret',
   'x_access_token',
   'x_access_secret',
+  'x_bearer_token',
   'meta_access_token',
 ]);
 
 /** Keys a single company may override (e.g. each company has its own X account). */
 export const COMPANY_KEYS = [
-  'x_api_key', 'x_api_secret', 'x_access_token', 'x_access_secret',
+  'x_api_key', 'x_api_secret', 'x_access_token', 'x_access_secret', 'x_bearer_token',
   'meta_ad_account_id', 'meta_page_id', 'meta_access_token',
   'stripe_secret_key', 'email_from',
   'writing_voice', 'writing_spelling',
+  // What a deploy may put on the public website (globs; see server/publish.ts).
+  'publish_include', 'publish_exclude',
 ];
 
 const KNOWN = new Set([...Object.keys(DEFAULTS), ...SECRET_KEYS]);

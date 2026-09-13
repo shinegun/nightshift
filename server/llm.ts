@@ -40,6 +40,26 @@ export function spentToday(): number {
   return get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM usage WHERE day = ?', localNow().day)?.s ?? 0;
 }
 
+/**
+ * Spend since the 1st of the local month. An API key is usually bought by the month, so a daily
+ * cap alone cannot express the limit that actually matters: $2/day is $60/month, which is not
+ * what someone with $30 to spend meant.
+ */
+export function spentThisMonth(): number {
+  return get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM usage WHERE day LIKE ?', `${localNow().day.slice(0, 7)}-%`)?.s ?? 0;
+}
+
+/** The cap that stops work first, or null when there is room. Both caps are off at 0. */
+export function budgetStop(): { scope: 'daily' | 'monthly'; cap: number; spent: number } | null {
+  const daily = num('daily_budget_usd');
+  const monthly = num('monthly_budget_usd');
+  const spentM = monthly > 0 ? spentThisMonth() : 0;
+  if (monthly > 0 && spentM >= monthly) return { scope: 'monthly', cap: monthly, spent: spentM };
+  const spentD = daily > 0 ? spentToday() : 0;
+  if (daily > 0 && spentD >= daily) return { scope: 'daily', cap: daily, spent: spentD };
+  return null;
+}
+
 function config() {
   const apiKey = setting('llm_api_key');
   if (!apiKey) throw new LLMError('No AI API key set — add your DeepSeek key in Settings.', 'config');
@@ -73,9 +93,14 @@ export async function chat(opts: ChatOpts): Promise<AssistantMsg> {
 
 async function chatOnce(opts: ChatOpts): Promise<AssistantMsg> {
   const { apiKey, baseUrl, model } = config();
-  const budget = num('daily_budget_usd');
-  if (budget > 0 && spentToday() >= budget) {
-    throw new LLMError(`Daily AI budget of $${budget} reached — raise it in Settings or wait until tomorrow.`, 'budget');
+  const stop = budgetStop();
+  if (stop) {
+    throw new LLMError(
+      stop.scope === 'monthly'
+        ? `Monthly AI budget of $${stop.cap} reached ($${stop.spent.toFixed(2)} spent). Raise it in Settings or wait for the 1st.`
+        : `Daily AI budget of $${stop.cap} reached. Raise it in Settings or wait until tomorrow.`,
+      'budget',
+    );
   }
 
   const body: Record<string, unknown> = { model, messages: opts.messages };

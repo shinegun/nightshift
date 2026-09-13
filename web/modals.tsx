@@ -101,6 +101,10 @@ export function DocModal({ id, onClose, onChange }: { id: number; onClose: () =>
 
 // ── Email ──
 
+function EmailField({ label, children }: { label: string; children: ReactNode }) {
+  return <label className="email-field"><span>{label}</span>{children}</label>;
+}
+
 export function EmailModal({ email, onClose, onChange, onReply }: { email?: Email; onClose: () => void; onChange: () => void; onReply: (to: string) => void }) {
   const { busy, run } = useAction();
   const [draft, setDraft] = useState(email ? { to: email.to_addr, subject: email.subject, body: email.body } : null);
@@ -108,21 +112,28 @@ export function EmailModal({ email, onClose, onChange, onReply }: { email?: Emai
   if (!email || !draft) return null;
   const pending = email.status === 'pending_approval';
   return (
-    <Modal wide title={email.subject} onClose={onClose}>
+    <Modal wide title={pending ? 'Review email' : email.subject} onClose={onClose}>
       <div className="meta-row mono small">
-        <span>{email.direction === 'in' ? `from ${email.from_addr}` : `to ${email.to_addr}`}</span>
-        <span>{new Date(email.created_at).toLocaleString()}</span>
         <Pill status={email.status} />
+        <span>{email.kind}</span>
+        <span>{new Date(email.created_at).toLocaleString()}</span>
       </div>
       {email.error && <p className="error">{email.error}</p>}
       {pending ? (
-        <div className="stack">
-          <input value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} aria-label="To" />
-          <input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} aria-label="Subject" />
-          <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={14} aria-label="Body" />
+        <div className="email-sheet">
+          <EmailField label="From"><span className="email-fixed">{email.from_addr}</span></EmailField>
+          <EmailField label="To"><input value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></EmailField>
+          <EmailField label="Subject"><input className="email-subject" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} /></EmailField>
+          <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={16} aria-label="Message" />
         </div>
-      ) : <pre className="email-body">{email.body}</pre>}
-      <div className="row-actions">
+      ) : (
+        <div className="email-sheet">
+          <EmailField label="From"><span className="email-fixed">{email.from_addr}</span></EmailField>
+          <EmailField label="To"><span className="email-fixed">{email.to_addr}</span></EmailField>
+          <pre className="email-body">{email.body}</pre>
+        </div>
+      )}
+      <div className="row-actions wrap">
         {pending && (
           <>
             <button className="btn primary small" disabled={busy !== null} onClick={() => run('send', async () => { await patch(`/emails/${email.id}`, draft); await post(`/emails/${email.id}/approve`); onChange(); onClose(); }, 'Email sent')}>Approve & send</button>
@@ -140,13 +151,17 @@ export function ComposeEmailModal({ base, to = '', from, onClose, onChange }: { 
   const [m, setM] = useState({ to, subject: '', body: '' });
   const { busy, run } = useAction();
   return (
-    <Modal title="New email" onClose={onClose}>
-      <form className="stack" onSubmit={(e) => { e.preventDefault(); void run('send', async () => { await post(`${base}/emails`, m); onChange(); onClose(); }, 'Email sent'); }}>
-        {from && <p className="muted small mono">From {from}</p>}
-        <input required type="email" placeholder="To" value={m.to} onChange={(e) => setM({ ...m, to: e.target.value })} />
-        <input required placeholder="Subject" value={m.subject} onChange={(e) => setM({ ...m, subject: e.target.value })} />
-        <textarea required rows={12} placeholder="Message" value={m.body} onChange={(e) => setM({ ...m, body: e.target.value })} />
-        <button className="btn primary" disabled={busy !== null}>Send</button>
+    <Modal wide title="New email" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); void run('send', async () => { await post(`${base}/emails`, m); onChange(); onClose(); }, 'Email sent'); }}>
+        <div className="email-sheet">
+          {from && <EmailField label="From"><span className="email-fixed">{from}</span></EmailField>}
+          <EmailField label="To"><input required autoFocus type="email" placeholder="name@company.com" value={m.to} onChange={(e) => setM({ ...m, to: e.target.value })} /></EmailField>
+          <EmailField label="Subject"><input required className="email-subject" placeholder="What it's about" value={m.subject} onChange={(e) => setM({ ...m, subject: e.target.value })} /></EmailField>
+          <textarea required rows={14} placeholder="Write your message…" value={m.body} onChange={(e) => setM({ ...m, body: e.target.value })} aria-label="Message" />
+        </div>
+        <div className="row-actions wrap">
+          <button className="btn primary" disabled={busy !== null}>Send</button>
+        </div>
       </form>
     </Modal>
   );
@@ -206,16 +221,23 @@ export function NewAdModal({ base, link, onClose, onChange }: { base: string; li
 
 const OVERRIDES: { key: string; label: string; secret?: boolean }[] = [
   { key: 'email_from', label: 'Send-from address (overrides global)' },
-  { key: 'x_api_key', label: 'X API key', secret: true },
-  { key: 'x_api_secret', label: 'X API secret', secret: true },
+  { key: 'x_api_key', label: 'X consumer key', secret: true },
+  { key: 'x_api_secret', label: 'X consumer secret', secret: true },
   { key: 'x_access_token', label: 'X access token', secret: true },
   { key: 'x_access_secret', label: 'X access token secret', secret: true },
+  { key: 'x_bearer_token', label: 'X bearer token (read-only, cannot post)', secret: true },
   { key: 'meta_access_token', label: 'Meta access token', secret: true },
   { key: 'meta_ad_account_id', label: 'Meta ad account ID' },
   { key: 'meta_page_id', label: 'Meta Page ID' },
   { key: 'stripe_secret_key', label: 'Stripe secret key (own account)', secret: true },
   { key: 'writing_voice', label: 'Writing voice (e.g. "warm, a bit playful")' },
   { key: 'writing_spelling', label: 'Spelling: auto, british or american' },
+];
+
+/** What a deploy is allowed to put on the public website (see server/publish.ts). */
+const PUBLISH_RULES: { key: string; label: string; placeholder: string }[] = [
+  { key: 'publish_include', label: 'Always publish (globs)', placeholder: 'data/*.json, assets/**' },
+  { key: 'publish_exclude', label: 'Never publish (globs)', placeholder: 'pricing.html, drafts/*' },
 ];
 
 export function CompanySettingsModal({ d, base, onClose, onChange }: { d: DashboardData; base: string; onClose: () => void; onChange: () => void }) {
@@ -242,6 +264,30 @@ export function CompanySettingsModal({ d, base, onClose, onChange }: { d: Dashbo
                   <input
                     type={o.secret ? 'password' : 'text'} autoComplete="off"
                     placeholder={cur?.set ? (o.secret ? 'unchanged' : cur.value) : 'use global'}
+                    value={ov[o.key] ?? ''} onChange={(e) => setOv({ ...ov, [o.key]: e.target.value })}
+                  />
+                  {cur?.set && <button type="button" className="btn small ghost" onClick={() => setOv({ ...ov, [o.key]: null })}>{ov[o.key] === null ? 'will clear' : 'Clear'}</button>}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+        <h3>What may go on the website</h3>
+        <p className="hint">
+          A deploy publishes only the files this company's pages link. Use these to force files in or keep them out.
+          Dotfiles, key-shaped filenames, tooling folders and any page holding something credential-shaped are never
+          published, whatever is written here.
+        </p>
+        <div className="field-grid">
+          {PUBLISH_RULES.map((o) => {
+            const cur = d.overrides[o.key];
+            return (
+              <label key={o.key} className="field">
+                <span>{o.label}{cur?.value ? ` · ${cur.value}` : ''}</span>
+                <div className="row">
+                  <input
+                    type="text" autoComplete="off"
+                    placeholder={cur?.value || o.placeholder}
                     value={ov[o.key] ?? ''} onChange={(e) => setOv({ ...ov, [o.key]: e.target.value })}
                   />
                   {cur?.set && <button type="button" className="btn small ghost" onClick={() => setOv({ ...ov, [o.key]: null })}>{ov[o.key] === null ? 'will clear' : 'Clear'}</button>}

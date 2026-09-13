@@ -1,6 +1,7 @@
 import { all, now, run, type Company } from './db.ts';
 import { companyConfig, companySetting, setting } from './settings.ts';
 import { emit } from './events.ts';
+import { X_WHERE_TO_GET, missingForPosting, xCredentialState } from './integrations/x.ts';
 import { companyAddress, imapHost } from './integrations/email.ts';
 import { errMsg } from './util.ts';
 
@@ -106,6 +107,11 @@ function staticProblem(key: IntegrationKey, c?: Pick<Company, 'config'>): string
       if (m.length) return `Missing: ${m.join(', ')}.`;
       if (!imapHost()) return `IMAP host is empty and can't be guessed from "${s('imap_user').split('@')[1] ?? ''}" — enter your provider's IMAP server.`;
       if (!s('email_from')) return 'Company addresses are built from "Send from", which is empty — incoming mail can\'t be matched to a company.';
+      const clash = all<{ email: string; names: string; n: number }>(
+        `SELECT LOWER(TRIM(email)) AS email, GROUP_CONCAT(name, ' and ') AS names, COUNT(*) AS n
+         FROM companies WHERE TRIM(email) <> '' GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1`,
+      )[0];
+      if (clash) return `${clash.names} share the address ${clash.email}, so a reply to it can only be filed to one of them. Give each company its own address (or the +slug form).`;
       return null;
     }
     case 'vercel':
@@ -123,9 +129,24 @@ function staticProblem(key: IntegrationKey, c?: Pick<Company, 'config'>): string
       return null;
     }
     case 'x': {
-      const m = missing([['API key', s('x_api_key')], ['API key secret', s('x_api_secret')], ['access token', s('x_access_token')], ['access token secret', s('x_access_secret')]]);
-      if (m.length === 4) return 'Not connected — add the 4 keys from your X developer app.';
-      return m.length ? `Missing: ${m.join(', ')}.` : null;
+      const missing = missingForPosting(c);
+      const own = all<{ slug: string }>("SELECT slug FROM companies WHERE config LIKE '%x_access_token%'");
+      const bearerNote = xCredentialState(c).bearer
+        ? 'A bearer token is saved, but it is app-only and cannot post. '
+        : '';
+      if (c) {
+        if (!missing.length) return null;
+        // A company with no account of its own and no default to fall back on cannot post.
+        return missing.length === 4
+          ? `${bearerNote}This company has no X account of its own and no default one is set, so it cannot post. Connect its X account (Company → X) — the four values are the consumer key and secret, plus that account's own access token and secret.`
+          : `Missing: ${missing.join(', ')}. ${X_WHERE_TO_GET}`;
+      }
+      // Global scope: these four values are the fallback identity for a company that has none
+      // of its own. When a company already posts as its own account, nothing is missing here.
+      if (!missing.length || own.length) return null;
+      return missing.length === 4
+        ? `${bearerNote}Not connected — no company has an X account yet, so nothing can post. Add the four values here as a default, or connect an X account to a company (Company → X). ${X_WHERE_TO_GET}`
+        : `Missing: ${missing.join(', ')}. ${X_WHERE_TO_GET}`;
     }
     case 'meta': {
       const m = missing([['access token', s('meta_access_token')], ['ad account ID', s('meta_ad_account_id')], ['Page ID', s('meta_page_id')]]);
@@ -144,7 +165,12 @@ export function integrationHealth(c?: Company): Record<IntegrationKey, Health> {
   for (const k of INTEGRATIONS) {
     const problem = staticProblem(k, c);
     const issue = (c && issues.get(`${k}@${c.id}`)) || issues.get(k);
-    out[k] = problem ? { state: 'off', message: problem }
+    // The shared X values are only the fallback identity for a company that has none of its
+    // own. With every company posting as its own account they can stay empty, so report 'off'
+    // with no warning — neither a fault nor a claim that the empty fallback is ready.
+    const emptyFallback = !c && k === 'x' && !problem && missingForPosting(undefined).length > 0;
+    out[k] = emptyFallback ? { state: 'off', message: '' }
+      : problem ? { state: 'off', message: problem }
       : issue ? { state: 'error', message: issue.message, at: issue.at }
       : { state: 'ready', message: '' };
   }

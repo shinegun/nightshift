@@ -114,10 +114,34 @@ export function WebsiteCard({ d, base, load }: PanelProps) {
         <span>Public URL</span>
         {c.site_url ? <a href={c.site_url} target="_blank" rel="noreferrer">{c.site_url.replace(/^https:\/\//, '')}</a> : <span className="muted">not deployed</span>}
       </div>
-      <div className="kv"><span>Files</span><span>{d.files.length} · {(d.files.reduce((s, f) => s + f.size, 0) / 1024).toFixed(1)} KB</span></div>
+      <div className="kv"><span>Folder</span><span>{d.files.length} files · {(d.files.reduce((s, f) => s + f.size, 0) / 1024).toFixed(1)} KB</span></div>
+      <div className="kv">
+        <span>Publishes</span>
+        <span>{d.publish.files.length} files · {(d.publish.bytes / 1024).toFixed(1)} KB{d.publish.skipped.length ? ` · ${d.publish.skipped.length} kept private` : ''}</span>
+      </div>
+      <details className="publish">
+        <summary>What goes live, and what stays private</summary>
+        <p className="hint">Goes live:</p>
+        <ul className="publish-list">
+          {d.publish.files.map((f) => <li key={f.path}><code>{f.path}</code><span className="muted"> — {f.reason}</span></li>)}
+        </ul>
+        {d.publish.skipped.length > 0 && (
+          <>
+            <p className="hint">Stays private:</p>
+            <ul className="publish-list kept">
+              {d.publish.skipped.map((f) => <li key={f.path}><code>{f.path}</code><span className="muted"> — {f.reason}</span></li>)}
+            </ul>
+          </>
+        )}
+        {d.publish.missing.map((m) => <p className="hint" key={m}>A page asks for <code>{m}</code> and it is not in the folder yet. The page has to handle that itself.</p>)}
+        {d.publish.warnings.map((w) => <p className="hint" key={w}>{w}</p>)}
+      </details>
+      {d.publish.blocked.length > 0 && (
+        <p className="health error">Deploy blocked — {d.publish.blocked.join('; ')}</p>
+      )}
       <div className="row-actions wrap">
         {d.integrations.vercel ? (
-          <button className="btn small primary" disabled={busy === 'deploy' || !d.files.length}
+          <button className="btn small primary" disabled={busy === 'deploy' || !d.publish.files.length || d.publish.blocked.length > 0}
             onClick={() => run('deploy', async () => { await post(`${base}/deploy`); await load(); }, 'Deployed to Vercel')}>
             {busy === 'deploy' ? 'Deploying…' : c.site_url ? 'Redeploy' : 'Deploy to Vercel'}
           </button>
@@ -212,6 +236,28 @@ export function DocsCard({ d, setModal }: PanelProps) {
 
 // ── Morning report ──
 
+/** The section headings both the written report and the plain fallback use. */
+const REPORT_SECTIONS = ['done overnight', 'numbers', 'needs you', "today's focus"];
+
+/**
+ * The report is plain text, because it is also an email. Here we give it back the shape the
+ * text implies: headings as headings, indented detail lines as indented detail.
+ */
+function ReportBody({ text }: { text: string }) {
+  return (
+    <div className="report">
+      {text.split('\n').map((raw, k) => {
+        const line = raw.trim();
+        if (!line) return null;
+        const heading = line.replace(/:$/, '');
+        if (REPORT_SECTIONS.includes(heading.toLowerCase())) return <h4 key={k}>{heading}</h4>;
+        if (k === 0) return <p key={k} className="report-lede">{line}</p>;
+        return <p key={k} className={`report-line${/^\s\s+\S/.test(raw) ? ' indent' : ''}`}>{line}</p>;
+      })}
+    </div>
+  );
+}
+
 export function ReportCard({ d, base, load }: PanelProps) {
   const { busy, run } = useAction();
   const [i, setI] = useState(0);
@@ -229,7 +275,7 @@ export function ReportCard({ d, base, load }: PanelProps) {
             <span className="mono small">{r.day}</span>
             <button className="btn small ghost" disabled={i === 0} onClick={() => setI(i - 1)}>›</button>
           </div>
-          <div className="report">{r.content}</div>
+          <ReportBody text={r.content} />
         </>
       )}
     </Card>
@@ -267,6 +313,12 @@ export function XCard({ d, base, load }: PanelProps) {
                     <span className="muted small">{timeAgo(t.posted_at ?? t.created_at)}</span>
                     {t.status === 'posted' && t.external_id && <a className="small" href={`https://x.com/i/status/${t.external_id}`} target="_blank" rel="noreferrer">view ↗</a>}
                     {(t.status === 'pending_approval' || t.status === 'failed') && <button className="btn small ghost" onClick={() => setEdit({ id: t.id, text: t.text })}>Edit</button>}
+                    {t.status === 'failed' && (
+                      <button className="btn small primary" disabled={busy !== null}
+                        onClick={() => run(`retry${t.id}`, async () => { await post(`/tweets/${t.id}/approve`); await load(); }, 'Sent to X')}>
+                        Try posting again
+                      </button>
+                    )}
                   </div>
                   {t.error && <p className="error small">{t.error}</p>}
                 </>

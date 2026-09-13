@@ -190,6 +190,11 @@ site files.
   so the scripts in them cannot reach the dashboard API.
 - **Stop button**: pause the scheduler, pause Auto Mode or Night Task per company, or
   cancel a single running task.
+- **Publishing is scoped to the site's reachable surface.** A deploy uploads the pages plus
+  only what those pages actually link (assets, data files, the docs they point at), so the
+  agent's tooling, internal notes and fixture/sample data stay in the working copy. Every
+  exclusion is listed with its reason next to the Deploy button, and a file that would go
+  live while holding something credential-shaped blocks the deploy instead of shipping.
 
 ---
 

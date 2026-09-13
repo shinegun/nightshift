@@ -112,9 +112,10 @@ export function injectTracker(html: string, slug: string, base: string) {
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${tag}\n</body>`) : `${html}\n${tag}`;
 }
 
-/** All files base64-encoded for the Vercel API, with the tracker pointed at the public platform URL. */
-export function filesForDeploy(slug: string, publicBase: string) {
-  return listFiles(slug).map(({ path: rel }) => {
+/** The given site files, base64-encoded for the Vercel API, with the tracker pointed at the public platform URL.
+ *  `paths` comes from publishPlan() — only files the site actually reaches are ever uploaded. */
+export function filesForDeploy(slug: string, publicBase: string, paths: string[]) {
+  return paths.map((rel) => {
     let buf = fs.readFileSync(safePath(slug, rel));
     if (publicBase && /\.html?$/i.test(rel)) buf = Buffer.from(injectTracker(buf.toString('utf8'), slug, publicBase));
     return { file: rel, data: buf.toString('base64'), encoding: 'base64' as const };

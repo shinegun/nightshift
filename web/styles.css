@@ -134,6 +134,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .kv { display: flex; justify-content: space-between; gap: 1rem; font-size: .88rem; padding: .3rem 0; border-top: 1px solid var(--line); }
 .kv > span:first-child { color: var(--ink-2); }
 .kv a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Publish plan: what a deploy uploads, and what it deliberately leaves behind. */
+.publish { margin: .5rem 0 .2rem; font-size: .84rem; }
+.publish summary { cursor: pointer; color: var(--ink-2); }
+.publish summary::marker { color: var(--ink-2); }
+.publish-list { list-style: none; margin: .3rem 0 0; padding: 0 0 0 .6rem; border-left: 2px solid var(--line);
+  max-height: 11rem; overflow: auto; }
+.publish-list li { padding: .15rem 0; overflow-wrap: anywhere; }
+.publish-list li + li { border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent); }
+.publish-list code { font-size: .8rem; }
+.publish-list.kept { margin-top: .1rem; }
+.publish-list.kept li { opacity: .78; }
 .alert { background: color-mix(in srgb, var(--err) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
   border-radius: var(--radius); padding: .8rem 1rem; margin-bottom: 1rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
 
@@ -210,7 +221,12 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .badge.next { background: color-mix(in srgb, var(--lamp) 20%, transparent); color: var(--lamp); }
 .queue-hint { margin: .5rem 0 0; }
 .doc-icon { font-size: 1.2rem; color: var(--ink-3); }
-.report { white-space: pre-wrap; font-size: .9rem; line-height: 1.55; max-height: 22rem; overflow-y: auto; }
+.report { font-size: .9rem; line-height: 1.55; max-height: 22rem; overflow-y: auto; overflow-wrap: anywhere; }
+.report h4 { font: 600 .72rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); margin: 1rem 0 .4rem; }
+.report h4:first-child { margin-top: 0; }
+.report-lede { font-weight: 500; margin: 0; }
+.report-line { margin: .15rem 0; }
+.report-line.indent { padding-left: 1.1rem; color: var(--ink-2); }
 .report-nav { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
 .tweet { padding: .6rem 0; border-top: 1px solid var(--line); }
 .tweet:first-child { border-top: 0; }
@@ -253,6 +269,20 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .log-error pre { color: var(--err); }
 .log-running { display: flex !important; align-items: center; gap: .5rem; color: var(--ink-2); padding-left: 5.2rem; }
 .doc-editor { font: .85rem/1.55 var(--mono); }
+/* ── Email sheet: header rows over a body, like a mail client ── */
+.email-sheet { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.email-field { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; gap: .7rem;
+  padding: 0 .9rem; border-bottom: 1px solid var(--line); }
+.email-field > span:first-child { font: 500 .72rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.email-field:focus-within { background: var(--surface-2); }
+.email-field:focus-within > span:first-child { color: var(--accent); }
+.email-sheet input, .email-sheet textarea { border: 0; border-radius: 0; background: transparent; }
+.email-sheet input:focus, .email-sheet textarea:focus { box-shadow: none; }
+.email-field input { padding: .6rem 0; }
+.email-subject { font-weight: 600; }
+.email-fixed { font: .88rem/1 var(--mono); color: var(--ink-2); padding: .6rem 0; overflow-wrap: anywhere; }
+.email-sheet textarea { padding: .9rem; font: .92rem/1.65 var(--sans); min-height: 16rem; }
+.email-sheet .email-body { border-radius: 0; background: transparent; padding: .9rem; margin: 0; }
 .email-body { white-space: pre-wrap; font: .9rem/1.6 var(--sans); background: var(--surface-2); padding: .8rem 1rem; border-radius: 8px; overflow-wrap: anywhere; }
 .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--surface); border-left: 1px solid var(--line); z-index: 40; display: flex; flex-direction: column; box-shadow: -10px 0 40px rgb(0 0 0 / 15%); }
 .drawer-head { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1rem; border-bottom: 1px solid var(--line); }
@@ -291,6 +321,30 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .usage th { text-align: left; font: 600 .7rem var(--mono); text-transform: uppercase; color: var(--ink-3); padding: .3rem .4rem; border-bottom: 1px solid var(--line); }
 .usage td { padding: .35rem .4rem; border-bottom: 1px solid var(--line); }
 @media (max-width: 700px) { .usage { grid-template-columns: 1fr; } .start-row { flex-direction: column; } .start-row input { max-width: none; } }
+
+/* ── OpEx ──────────────────────────────────────────────────────────────────── */
+.spend .over { color: var(--err); }
+.opex { display: flex; flex-direction: column; gap: .9rem; margin: .3rem 0 .9rem; }
+.opex-head { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
+.opex-total { font: 600 1.5rem/1 var(--mono); }
+.meter { height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.meter-fill { height: 100%; background: var(--ok); transition: width .3s ease; }
+.meter.warn .meter-fill { background: var(--warn); }
+.meter.over .meter-fill { background: var(--err); }
+.opex-table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+.opex-table th { text-align: left; font: 600 .7rem var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: .3rem .5rem .3rem 0; border-bottom: 1px solid var(--line); }
+.opex-table td { padding: .4rem .5rem .4rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.opex-table th.num, .opex-table td.num { text-align: right; }
+.opex-table td.num { font-family: var(--mono); white-space: nowrap; }
+.opex-table .badge { margin-left: .35rem; }
+.opex-table th:last-child, .opex-table td:last-child { width: 1.8rem; text-align: right; }
+.opex-table .btn.danger { color: var(--ink-3); font-size: 1rem; line-height: 1; }
+.opex-table .btn.danger:hover { color: var(--err); background: transparent; }
+.opex-total-row td { border-bottom: 0; border-top: 2px solid var(--line); }
+.opex-subs { border-top: 1px solid var(--line); padding-top: .7rem; }
+.opex-add { display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr auto; gap: .6rem; align-items: end; margin-top: .6rem; }
+.opex code { font-family: var(--mono); font-size: .8rem; }
+@media (max-width: 820px) { .opex-add { grid-template-columns: 1fr 1fr; } }
 
 /* ── Toasts ── */
 .toasts { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: .4rem; z-index: 100; width: min(460px, calc(100% - 2rem)); }
