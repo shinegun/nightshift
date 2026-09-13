@@ -10,10 +10,19 @@ import { timeAgo, useAction } from './lib.tsx';
  */
 export function PeoplePanel() {
   const [data, setData] = useState<{ users: PublicUser[]; me: PublicUser | null } | null>(null);
+  const [error, setError] = useState('');
   const { busy, run } = useAction();
-  const load = useCallback(() => api<{ users: PublicUser[]; me: PublicUser | null }>('/users').then(setData).catch(() => {}), []);
+  const load = useCallback(
+    () => api<{ users: PublicUser[]; me: PublicUser | null }>('/users')
+      // Never let a bad payload throw during render: a panel that cannot load itself must not
+      // take the rest of the Settings page down with it.
+      .then((r) => { setData({ users: r?.users ?? [], me: r?.me ?? null }); setError(''); })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e))),
+    [],
+  );
   useEffect(() => { void load(); }, [load]);
 
+  if (error) return <p className="error small">{error}</p>;
   if (!data) return <p className="muted small">Loading…</p>;
   if (!data.users.length) {
     return <p className="muted small">Nobody has an account yet, so the dashboard is open to anyone who can reach it. Add yourself with <code>npm run user -- add</code>.</p>;

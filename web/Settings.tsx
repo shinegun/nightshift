@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, post } from './api.ts';
 import type { HealthKey, SettingsPayload } from './types.ts';
-import { HealthNote, toast, useAction, usd } from './lib.tsx';
+import { Boundary, HealthNote, toast, useAction, usd } from './lib.tsx';
 import { OpexPanel } from './Opex.tsx';
 import { PeoplePanel } from './People.tsx';
 
@@ -211,8 +211,8 @@ export function Settings({ onSaved }: { onSaved: () => void }) {
           </header>
           {s.intro && <p className="muted small">{s.intro}</p>}
           {(SECTION_HEALTH[s.id] ?? []).map(([k, label]) => <HealthNote key={k} h={data.health[k]} label={label} link={false} showReady />)}
-          {s.panel === 'opex' && <OpexPanel />}
-          {s.panel === 'people' && <PeoplePanel />}
+          {s.panel === 'opex' && <Boundary name="OpEx"><OpexPanel /></Boundary>}
+          {s.panel === 'people' && <Boundary name="People"><PeoplePanel /></Boundary>}
           {(s.tests ?? (s.test ? [[s.test, '']] : [])).map(([what]) => results[what] && (
             <p key={what} className={results[what].ok ? 'ok small' : 'error small'}>{results[what].ok ? '✓ ' : '✗ '}{results[what].text}</p>
           ))}

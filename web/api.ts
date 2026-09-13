@@ -6,8 +6,13 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
     headers: method === 'GET' ? undefined : { 'content-type': 'application/json' },
     body: method === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  // A body that isn't JSON is never a usable answer, even with a 200. An unknown /api path falls
+  // through to the SPA catch-all and comes back as index.html; swallowing that into {} hands the
+  // caller an object with every field missing, which then throws somewhere far from the cause.
+  const isJson = (res.headers.get('content-type') ?? '').includes('application/json');
+  const data = isJson ? await res.json().catch(() => null) : null;
+  if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? `Request failed (${res.status})`);
+  if (data === null) throw new Error(`${path} did not return JSON (${res.status}). The server may be running older code than this page.`);
   return data as T;
 }
 

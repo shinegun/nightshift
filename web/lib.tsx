@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Health } from './types.ts';
@@ -141,4 +141,32 @@ export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChang
       <span className="knob" />{label}
     </button>
   );
+}
+
+/**
+ * Keeps one broken panel from taking a whole page with it.
+ *
+ * React unmounts the entire tree when a render throws, which is how a single bad field turns into
+ * a blank screen that flashed once. A boundary around each panel turns that into a line of text in
+ * the place the panel would have been, and leaves the rest of the page usable.
+ */
+export class Boundary extends Component<{ name: string; children: ReactNode }, { message: string }> {
+  state = { message: '' };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error(`[${this.props.name}]`, error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.message) return this.props.children;
+    return (
+      <p className="error small">
+        {this.props.name} could not be shown: {this.state.message}
+      </p>
+    );
+  }
 }
