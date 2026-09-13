@@ -1,34 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
-import type { AdCampaign, GitState, Task, TaskStatus } from './types.ts';
-import { Card, Empty, HealthNote, Markdown, Pill, money, timeAgo, toast, useAction } from './lib.tsx';
+import type { AdCampaign, DashboardData, GitState, Task, TaskStatus } from './types.ts';
+import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
-
-// ── Today ──
-
-/**
- * The headline, and only the headline. This used to also list every decision — the same list
- * "Needs you" renders directly below with buttons on it, so you read it twice and could not tell
- * which copy you had dealt with. The list lives there now; what is left here is the one thing
- * that card cannot tell you, which is what the night actually produced.
- */
-export function BriefCard({ d }: PanelProps) {
-  const list = d.decisions ?? [];
-  const done = d.tasks.filter((t) => t.status === 'done').length;
-  const unfinished = d.tasks.filter((t) => t.status === 'failed').length;
-  return (
-    <Card title="Today" className="brief">
-      <p className="brief-head">
-        {list.length ? `${list.length} decision${list.length === 1 ? '' : 's'} for you.` : 'Nothing needs you.'}
-      </p>
-      <p className="muted small brief-foot">
-        {d.tasks.length ? `${done} tasks done` : 'No tasks yet'}
-        {unfinished > 0 && `, ${unfinished} unfinished`}.
-      </p>
-    </Card>
-  );
-}
 
 // ── Needs you ──
 
@@ -39,6 +14,22 @@ export function BriefCard({ d }: PanelProps) {
  * a blocked night can leave a dozen requests here and push the whole dashboard off-screen.
  */
 const NEEDS_YOU_CAP = 5;
+
+/**
+ * How many rows that card will draw. The Today tab badges the same number: two counts for one
+ * concept is worse than none, and `decisions()` cannot supply it — that list groups five queued
+ * emails into one line for the morning report, where this one gives you five things to press.
+ */
+export function needsYouCount(d: DashboardData): number {
+  return (d.decisions ?? []).filter((x) => x.kind === 'budget').length
+    + (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed').length
+    + (d.requests ?? []).length
+    + d.tweets.filter((t) => t.status === 'pending_approval').length
+    + d.emails.filter((e) => e.status === 'pending_approval').length
+    + d.ads.filter((a) => a.status === 'paused').length
+    + (d.tasks.some((t) => t.status === 'failed') ? 1 : 0)
+    + ((d.decisions ?? []).some((x) => x.kind === 'blocked') ? 1 : 0);
+}
 
 export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const { busy, run } = useAction();
@@ -52,8 +43,8 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const [showAll, setShowAll] = useState(false);
   const commits = (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed');
   // The two decisions with nothing here to press: a spent budget is fixed in Settings, and a
-  // blocked task is unblocked by answering the request that blocked it. They were only ever
-  // shown in the brief above, which no longer lists anything — so they come here instead.
+  // blocked task is unblocked by answering the request that blocked it. They used to appear only
+  // in the brief card above, which is gone — so this list carries them now.
   const budget = (d.decisions ?? []).filter((x) => x.kind === 'budget');
   const blocked = (d.decisions ?? []).find((x) => x.kind === 'blocked');
   if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length
@@ -422,6 +413,7 @@ export function XCard({ d, base, load }: PanelProps) {
   const [text, setText] = useState('');
   const [edit, setEdit] = useState<{ id: number; text: string } | null>(null);
   const shown = d.tweets.filter((t) => t.status !== 'rejected').slice(0, 6);
+  if (!shown.length && !d.integrations.x && healthIsQuiet(d.health.x)) return null;
   return (
     <Card title="X (Twitter)">
       <HealthNote h={d.health.x} label="Posting to X" />
@@ -472,6 +464,7 @@ export function XCard({ d, base, load }: PanelProps) {
 
 export function EmailCard({ d, setModal }: PanelProps) {
   const [tab, setTab] = useState<'in' | 'out'>('in');
+  if (!d.emails.length && !d.integrations.email && healthIsQuiet(d.health.email) && healthIsQuiet(d.health.inbox)) return null;
   const rows = d.emails.filter((e) => e.direction === tab).slice(0, 12);
   const received = d.emails.filter((e) => e.direction === 'in').length;
   const sent = d.emails.filter((e) => e.direction === 'out' && e.status === 'sent').length;
@@ -509,6 +502,7 @@ function insights(a: AdCampaign) {
 
 export function AdsCard({ d, load, setModal }: PanelProps) {
   const { busy, run } = useAction();
+  if (!d.ads.length && !d.integrations.meta && healthIsQuiet(d.health.meta)) return null;
   return (
     <Card title="Meta Ads" action={<button className="btn small" disabled={!d.integrations.meta} onClick={() => setModal({ kind: 'newAd' })}>+ Campaign</button>}>
       <HealthNote h={d.health.meta} label="Meta Ads" />
@@ -542,6 +536,7 @@ export function PaymentsCard({ d, base, load }: PanelProps) {
   const { busy, run } = useAction();
   const [form, setForm] = useState({ name: '', amount: '', currency: 'myr', interval: 'one_time' });
   const [open, setOpen] = useState(false);
+  if (!d.paymentLinks.length && !d.integrations.stripe && healthIsQuiet(d.health.stripe)) return null;
   return (
     <Card title="Payments" action={<button className="btn small" disabled={!d.integrations.stripe} onClick={() => setOpen(!open)}>{open ? 'Close' : '+ Payment link'}</button>}>
       <HealthNote h={d.health.stripe} label="Payments" />

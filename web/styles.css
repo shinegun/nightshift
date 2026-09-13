@@ -199,6 +199,12 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .menu-items button:disabled { opacity: .4; }
 .menu-items .danger { color: var(--err); }
 .modes { display: flex; gap: .7rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+/* Top-level view switcher. Same visual language as the in-card tabs, one size up. */
+.views { display: flex; gap: .3rem; border-bottom: 1px solid var(--line); margin-bottom: 1.2rem; overflow-x: auto; }
+.views a { font: .95rem var(--sans); text-decoration: none; padding: .5rem .85rem; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: flex; align-items: center; gap: .35rem; }
+.views a:hover { color: var(--ink); }
+.views a.active { color: var(--ink); border-color: var(--lamp); font-weight: 500; }
+.views .count { font: .72rem/1 var(--mono); color: var(--bg); background: var(--lamp); border-radius: 999px; padding: .2rem .4rem; }
 .toggle { display: flex; align-items: center; gap: .7rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .9rem .6rem .7rem; cursor: pointer; color: var(--ink); font: inherit; text-align: left; }
 .toggle strong { display: block; font-size: .92rem; }
 .toggle small { display: block; color: var(--ink-3); font-size: .76rem; }
@@ -365,5 +371,3 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .toast.success { background: var(--ok); color: #fff; }
 
 /* Today: the morning in one card. Deliberately plain — it is read, not operated. */
-.brief-head { font-size: 1.05rem; font-weight: 500; margin: 0 0 .6rem; }
-.brief-foot { margin: 0; padding-top: .6rem; border-top: 1px solid var(--line); }

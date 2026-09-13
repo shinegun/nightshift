@@ -5,7 +5,7 @@ import { Toggle, go, timeAgo, useAction, useLive } from './lib.tsx';
 import { MOODS, Mascot } from './Mascot.tsx';
 import { Chat } from './Chat.tsx';
 import {
-  AdsCard, ApprovalsCard, BriefCard, BusinessCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard,
+  AdsCard, ApprovalsCard, BusinessCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard, needsYouCount,
 } from './panels.tsx';
 import { CompanySettingsModal, ComposeEmailModal, DocModal, EmailModal, NewAdModal, NewTaskModal, TaskModal } from './modals.tsx';
 
@@ -36,7 +36,21 @@ function Terminal({ lines }: { lines: Activity[] }) {
   );
 }
 
-export function Dashboard({ slug }: { slug: string }) {
+/**
+ * Five views instead of one page. Every card still exists; you just are not asked to read all
+ * twelve at once. "Today" is the one you open at breakfast and can finish — it answers "what
+ * needs me?" and nothing else. The rest are where you go looking.
+ */
+const VIEWS = [
+  { key: 'today', label: 'Today' },
+  { key: 'work', label: 'Work' },
+  { key: 'outbox', label: 'Outbox' },
+  { key: 'site', label: 'Site' },
+  { key: 'numbers', label: 'Numbers' },
+] as const;
+type ViewKey = (typeof VIEWS)[number]['key'];
+
+export function Dashboard({ slug, view }: { slug: string; view?: string }) {
   const [d, setD] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
@@ -59,6 +73,10 @@ export function Dashboard({ slug }: { slug: string }) {
     : d.night && c.night_mode ? 'night' : c.mood === 'triumphant' ? 'triumphant' : 'idle';
   const closeMenu = (e: React.MouseEvent) => (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open');
   const ctx = { d, slug, base, load, setModal };
+  const current: ViewKey = VIEWS.some((v) => v.key === view) ? (view as ViewKey) : 'today';
+  // The only count worth putting on a tab: the number of things that will not move without you.
+  // Same helper the card's own header uses, so the tab and the list can never disagree.
+  const waiting = needsYouCount(d);
 
   return (
     <div className="container dash">
@@ -104,27 +122,53 @@ export function Dashboard({ slug }: { slug: string }) {
         </div>
       )}
 
-      <BriefCard {...ctx} />
-      <ApprovalsCard {...ctx} />
+      <nav className="views" role="tablist">
+        {VIEWS.map((v) => (
+          <a key={v.key} role="tab" aria-selected={current === v.key} className={current === v.key ? 'active' : ''}
+            href={`#/c/${encodeURIComponent(slug)}${v.key === 'today' ? '' : `/${v.key}`}`}>
+            {v.label}
+            {v.key === 'today' && waiting > 0 && <span className="count">{waiting}</span>}
+          </a>
+        ))}
+      </nav>
 
-      <div className="grid">
-        <BusinessCard {...ctx} />
-        <WebsiteCard {...ctx} />
-        <TasksCard {...ctx} />
-        <DocsCard {...ctx} />
-        <ReportCard {...ctx} />
-        <XCard {...ctx} />
-        <EmailCard {...ctx} />
-        <AdsCard {...ctx} />
-        <PaymentsCard {...ctx} />
-        <WaitlistCard {...ctx} />
-      </div>
+      {current === 'today' && (
+        <>
+          <ApprovalsCard {...ctx} />
+          <div className="grid"><ReportCard {...ctx} /></div>
+        </>
+      )}
+      {current === 'work' && (
+        <div className="grid">
+          <TasksCard {...ctx} />
+          <DocsCard {...ctx} />
+        </div>
+      )}
+      {current === 'outbox' && (
+        <div className="grid">
+          <EmailCard {...ctx} />
+          <XCard {...ctx} />
+          <AdsCard {...ctx} />
+          <PaymentsCard {...ctx} />
+        </div>
+      )}
+      {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /></div>}
+      {current === 'numbers' && (
+        <div className="grid">
+          <BusinessCard {...ctx} />
+          <WaitlistCard {...ctx} />
+        </div>
+      )}
       <details className="activity-log">
         <summary>Activity log{d.activity.length ? ` · ${d.activity.length} recent lines` : ''}</summary>
         <Terminal lines={d.activity} />
       </details>
 
-      <p className="muted small footer-note">Created {timeAgo(c.created_at)} · AI spend on this company so far ${d.spendTotal.toFixed(3)}</p>
+      <p className="muted small footer-note">
+        {d.tasks.length ? `${d.tasks.filter((t) => t.status === 'done').length} of ${d.tasks.length} tasks done` : 'No tasks yet'}
+        {d.tasks.some((t) => t.status === 'failed') && `, ${d.tasks.filter((t) => t.status === 'failed').length} unfinished`}
+        {' · '}Created {timeAgo(c.created_at)} · AI spend on this company so far ${d.spendTotal.toFixed(3)}
+      </p>
 
       {modal?.kind === 'task' && <TaskModal id={modal.id} slug={slug} onClose={() => setModal(null)} onChange={load} />}
       {modal?.kind === 'doc' && <DocModal id={modal.id} onClose={() => setModal(null)} onChange={load} />}

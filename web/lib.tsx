@@ -114,6 +114,12 @@ export function Card({ title, action, children, className = '' }: { title: strin
 
 export const Empty = ({ children }: { children: ReactNode }) => <p className="empty">{children}</p>;
 
+/**
+ * Whether HealthNote would render nothing for this integration — i.e. it is fine, or it is off
+ * and has nothing to say about it. Cards use it to decide they have no reason to exist at all.
+ */
+export const healthIsQuiet = (h?: Health) => !h || h.state === 'ready' || (h.state === 'off' && !h.message);
+
 /** Says exactly why a feature can't be used (or that its last attempt failed). Renders nothing when healthy. */
 export function HealthNote({ h, label, link = true, showReady = false }: { h?: Health; label: string; link?: boolean; showReady?: boolean }) {
   if (!h) return null;

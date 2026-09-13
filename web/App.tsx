@@ -79,7 +79,7 @@ export function App() {
 
       <main>
         {page === 'home' && <Home state={state} />}
-        {page === 'dashboard' && <Dashboard key={route[1]} slug={route[1]} />}
+        {page === 'dashboard' && <Dashboard key={route[1]} slug={route[1]} view={route[2]} />}
         {page === 'settings' && <Settings onSaved={load} />}
       </main>
       <Toaster />
