@@ -34,6 +34,7 @@ import { companyMetrics, insertTask, integrationStatus, saveDocument } from './a
 import { isNight, startScheduler } from './scheduler.ts';
 import { clearIssue, clearIssuesForSettings, dismissIssue, integrationHealth, openIssues, reportIssue, type IntegrationKey } from './health.ts';
 import { decisions } from './decisions.ts';
+import { status as gitStatus } from './git.ts';
 import { errMsg, localNow } from './util.ts';
 
 const PORT = Number(process.env.PORT ?? 4455);
@@ -562,6 +563,16 @@ const commitById = (c: Context) => {
   if (!row) throw new HttpError(404, 'Commit not found');
   return row;
 };
+
+/** Git state for a company, fetched on demand: a subprocess is too costly for the dashboard poll. */
+api.get('/companies/:slug/git', async (c) => {
+  const co = mustCompany(c);
+  try {
+    return c.json(await gitStatus(co.slug));
+  } catch (e) {
+    return c.json({ repo: false, branch: '', remote: null, changed: [], changedCount: 0, ahead: 0, error: errMsg(e) });
+  }
+});
 
 api.post('/commits/:id/approve', async (c) => {
   const row = commitById(c);

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { patch, post } from './api.ts';
-import type { AdCampaign, Task, TaskStatus } from './types.ts';
+import { useEffect, useState } from 'react';
+import { api, patch, post } from './api.ts';
+import type { AdCampaign, GitState, Task, TaskStatus } from './types.ts';
 import { Card, Empty, HealthNote, Markdown, Pill, money, timeAgo, toast, useAction } from './lib.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
@@ -156,6 +156,43 @@ export function BusinessCard({ d }: PanelProps) {
 
 // ── Website ──
 
+/**
+ * Whether this company's site folder is under version control, and what state it is in. Fetched
+ * separately from the dashboard payload: asking git costs a subprocess, and the dashboard polls.
+ */
+function GitLine({ slug }: { slug: string }) {
+  const [git, setGit] = useState<GitState | null>(null);
+  useEffect(() => { api<GitState>(`/companies/${encodeURIComponent(slug)}/git`).then(setGit).catch(() => setGit(null)); }, [slug]);
+
+  if (!git) return <div className="kv"><span>Git</span><span className="muted">checking…</span></div>;
+  if (git.error) return <div className="kv"><span>Git</span><span className="error">{git.error}</span></div>;
+  if (!git.repo) {
+    return (
+      <div className="kv">
+        <span>Git</span>
+        <span className="muted">
+          not a repository. Agents can still write and deploy; they just cannot record or share the work.
+          Run <code>git init</code> and add a remote in the site folder to turn it on.
+        </span>
+      </div>
+    );
+  }
+  const dirty = git.changedCount
+    ? `${git.changedCount} uncommitted change${git.changedCount === 1 ? '' : 's'}`
+    : 'nothing uncommitted';
+  return (
+    <div className="kv">
+      <span>Git</span>
+      <span>
+        <span className="mono">{git.branch}</span> · {dirty}
+        {git.ahead > 0 && ` · ${git.ahead} unpushed`}
+        {git.remote ? <span className="muted"> · {git.remote.replace(/^git@github\.com:|^https:\/\/github\.com\//, '').replace(/\.git$/, '')}</span>
+          : <span className="muted"> · no remote, so nothing can be pushed</span>}
+      </span>
+    </div>
+  );
+}
+
 export function WebsiteCard({ d, base, load }: PanelProps) {
   const { busy, run } = useAction();
   const [version, setVersion] = useState('');
@@ -170,6 +207,7 @@ export function WebsiteCard({ d, base, load }: PanelProps) {
         {c.site_url ? <a href={c.site_url} target="_blank" rel="noreferrer">{c.site_url.replace(/^https:\/\//, '')}</a> : <span className="muted">not deployed</span>}
       </div>
       <div className="kv"><span>Folder</span><span>{d.files.length} files · {(d.files.reduce((s, f) => s + f.size, 0) / 1024).toFixed(1)} KB</span></div>
+      <GitLine slug={d.company.slug} />
       <div className="kv">
         <span>Publishes</span>
         <span>{d.publish.files.length} files · {(d.publish.bytes / 1024).toFixed(1)} KB{d.publish.skipped.length ? ` · ${d.publish.skipped.length} kept private` : ''}</span>

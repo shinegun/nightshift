@@ -117,3 +117,9 @@ export interface Commit {
   branch: string; message: string; summary: string;
   sha: string | null; remote: string | null; error: string | null; created_at: string; pushed_at: string | null;
 }
+
+/** Version-control state of a company's site folder. */
+export interface GitState {
+  repo: boolean; branch: string; remote: string | null;
+  changed: string[]; changedCount: number; ahead: number; error?: string;
+}
