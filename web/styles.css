@@ -67,8 +67,13 @@ code, .mono { font-family: var(--mono); font-size: .86em; }
 .topbar-links { display: flex; gap: 1rem; }
 .topbar-links a { color: var(--ink-2); text-decoration: none; padding: .2rem 0; border-bottom: 2px solid transparent; }
 .topbar-links a.active { color: var(--ink); border-color: var(--lamp); }
-.spend { margin-left: auto; display: flex; gap: .8rem; color: var(--ink-2); }
+.spend { margin-left: auto; color: var(--ink-2); }
 .spend.over { color: var(--err); }
+.spend-summary { cursor: pointer; font-size: .82rem; }
+.spend-items { min-width: 17rem; padding: .5rem .6rem; gap: .1rem; }
+.spend-row { display: flex; justify-content: space-between; gap: 1.5rem; padding: .3rem 0; font-size: .84rem; color: var(--ink); }
+.spend-row.over { color: var(--err); }
+.spend-note { margin: .5rem 0 0; padding-top: .5rem; border-top: 1px solid var(--line); line-height: 1.45; }
 .banner { background: var(--accent-soft); color: var(--ink); padding: .6rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid var(--line); }
 .banner.subtle { background: var(--surface-2); }
 .container { max-width: 1240px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }
@@ -106,7 +111,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: var(--shadow); min-width: 0; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .6rem; }
 .card-head h2 { font: 600 .74rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); grid-auto-flow: dense; gap: 1rem; align-items: start; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
 .span-2 { grid-column: span 2; }
 @media (max-width: 760px) { .span-2 { grid-column: auto; } }
 .list { list-style: none; margin: 0; padding: 0; }
@@ -169,7 +174,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .mode-flags .on { color: var(--lamp); }
 
 /* ── Dashboard ── */
-.terminal { background: var(--terminal); color: var(--terminal-ink); font: .8rem/1.55 var(--mono); border-radius: var(--radius); padding: .7rem .9rem; height: 8.5rem; overflow-y: auto; margin-bottom: 1.2rem; }
+.activity-log { margin: 1.4rem 0 .4rem; }
+.activity-log > summary { cursor: pointer; font: 600 .74rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); padding: .4rem 0; }
+.activity-log[open] > summary { margin-bottom: .5rem; }
+.terminal { background: var(--terminal); color: var(--terminal-ink); font: .8rem/1.55 var(--mono); border-radius: var(--radius); padding: .7rem .9rem; height: 12rem; overflow-y: auto; }
 .terminal .line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .terminal .line:last-child { color: #fff; }
 .terminal .ts { color: #6d6b62; margin-right: .7rem; }
@@ -200,6 +208,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .toggle.on .knob { background: color-mix(in srgb, var(--lamp) 30%, transparent); }
 .toggle.on .knob::after { transform: translateX(14px); background: var(--lamp); }
 .approvals { margin-bottom: 1rem; border-color: color-mix(in srgb, var(--lamp) 50%, var(--line)); }
+.more-link { margin-top: .6rem; }
+.request-steps > summary { cursor: pointer; font-size: .82rem; color: var(--ink-2); padding: .3rem 0; }
+.request-steps[open] > summary { margin-bottom: .2rem; }
 .list-item.request { align-items: flex-start; padding: .8rem .2rem; }
 .request .md { font-size: .87rem; margin: .3rem 0; }
 .request .md ol, .request .md ul { padding-left: 1.1rem; }
@@ -325,7 +336,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 @media (max-width: 700px) { .usage { grid-template-columns: 1fr; } .start-row { flex-direction: column; } .start-row input { max-width: none; } }
 
 /* ── OpEx ──────────────────────────────────────────────────────────────────── */
-.spend .over { color: var(--err); }
 .opex { display: flex; flex-direction: column; gap: .9rem; margin: .3rem 0 .9rem; }
 .opex-head { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
 .opex-total { font: 600 1.5rem/1 var(--mono); }
@@ -356,7 +366,4 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 /* Today: the morning in one card. Deliberately plain — it is read, not operated. */
 .brief-head { font-size: 1.05rem; font-weight: 500; margin: 0 0 .6rem; }
-.brief-list { list-style: none; margin: 0 0 .7rem; padding: 0; display: flex; flex-direction: column; gap: .45rem; counter-reset: brief; }
-.brief-list li { display: grid; grid-template-columns: 4.6rem 1fr; gap: .5rem; align-items: baseline; font-size: .92rem; }
-.brief-list .badge { margin: 0; text-align: center; }
 .brief-foot { margin: 0; padding-top: .6rem; border-top: 1px solid var(--line); }

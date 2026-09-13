@@ -62,8 +62,6 @@ export function Dashboard({ slug }: { slug: string }) {
 
   return (
     <div className="container dash">
-      <Terminal lines={d.activity} />
-
       <header className="dash-head">
         <div className="dash-title">
           <Mascot mood={mood} size={96} />
@@ -101,7 +99,7 @@ export function Dashboard({ slug }: { slug: string }) {
 
       {c.status === 'error' && (
         <div className="alert">
-          Setup stopped before finishing — the last line of the feed above says why. Fix it (usually a missing or out-of-credit API key), then{' '}
+          Setup stopped before finishing — the last line of the activity log at the foot of this page says why. Fix it (usually a missing or out-of-credit API key), then{' '}
           <button className="btn small" disabled={busy === 'boot'} onClick={() => run('boot', () => post(`${base}/bootstrap`), 'Setup restarted')}>Retry setup</button>
         </div>
       )}
@@ -121,6 +119,11 @@ export function Dashboard({ slug }: { slug: string }) {
         <PaymentsCard {...ctx} />
         <WaitlistCard {...ctx} />
       </div>
+      <details className="activity-log">
+        <summary>Activity log{d.activity.length ? ` · ${d.activity.length} recent lines` : ''}</summary>
+        <Terminal lines={d.activity} />
+      </details>
+
       <p className="muted small footer-note">Created {timeAgo(c.created_at)} · AI spend on this company so far ${d.spendTotal.toFixed(3)}</p>
 
       {modal?.kind === 'task' && <TaskModal id={modal.id} slug={slug} onClose={() => setModal(null)} onChange={load} />}

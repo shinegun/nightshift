@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
 import type { AdCampaign, GitState, Task, TaskStatus } from './types.ts';
 import { Card, Empty, HealthNote, Markdown, Pill, money, timeAgo, toast, useAction } from './lib.tsx';
@@ -7,41 +7,38 @@ import type { PanelProps } from './Dashboard.tsx';
 
 // ── Today ──
 
-const KIND_LABEL: Record<string, string> = {
-  budget: 'budget', commit: 'push', email: 'email', post: 'post', ad: 'ads', request: 'you', blocked: 'blocked',
-};
-
 /**
- * The whole morning, in one card: how many decisions, what they are, and what ran. Everything
- * else on this page is here for when you go looking, not for you to read every day.
+ * The headline, and only the headline. This used to also list every decision — the same list
+ * "Needs you" renders directly below with buttons on it, so you read it twice and could not tell
+ * which copy you had dealt with. The list lives there now; what is left here is the one thing
+ * that card cannot tell you, which is what the night actually produced.
  */
 export function BriefCard({ d }: PanelProps) {
   const list = d.decisions ?? [];
-  const unfinished = d.tasks.filter((t) => t.status === 'failed');
+  const done = d.tasks.filter((t) => t.status === 'done').length;
+  const unfinished = d.tasks.filter((t) => t.status === 'failed').length;
   return (
     <Card title="Today" className="brief">
       <p className="brief-head">
         {list.length ? `${list.length} decision${list.length === 1 ? '' : 's'} for you.` : 'Nothing needs you.'}
       </p>
-      {list.length > 0 && (
-        <ol className="brief-list">
-          {list.map((item, i) => (
-            <li key={`${item.kind}${item.id ?? i}`}>
-              <span className={`badge type-${item.kind === 'budget' || item.kind === 'blocked' ? 'fix' : 'research'}`}>{KIND_LABEL[item.kind] ?? item.kind}</span>
-              <span>{item.title}</span>
-            </li>
-          ))}
-        </ol>
-      )}
       <p className="muted small brief-foot">
-        {d.tasks.length ? `${d.tasks.filter((t) => t.status === 'done').length} tasks done` : 'No tasks yet'}
-        {unfinished.length > 0 && `, ${unfinished.length} unfinished`}.
+        {d.tasks.length ? `${done} tasks done` : 'No tasks yet'}
+        {unfinished > 0 && `, ${unfinished} unfinished`}.
       </p>
     </Card>
   );
 }
 
 // ── Needs you ──
+
+/**
+ * Every decision waiting on you, in one list. This is the only place an approval is actionable —
+ * the Email, X and Ads cards below are history, not inboxes — so a thing you have dealt with
+ * leaves the page instead of lingering somewhere else. Capped, because the list has no ceiling:
+ * a blocked night can leave a dozen requests here and push the whole dashboard off-screen.
+ */
+const NEEDS_YOU_CAP = 5;
 
 export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const { busy, run } = useAction();
@@ -52,87 +49,130 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const requests = d.requests ?? [];
   const [answering, setAnswering] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const commits = (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed');
-  if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length) return null;
+  // The two decisions with nothing here to press: a spent budget is fixed in Settings, and a
+  // blocked task is unblocked by answering the request that blocked it. They were only ever
+  // shown in the brief above, which no longer lists anything — so they come here instead.
+  const budget = (d.decisions ?? []).filter((x) => x.kind === 'budget');
+  const blocked = (d.decisions ?? []).find((x) => x.kind === 'blocked');
+  if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length
+    && !budget.length && !blocked) return null;
   const act = (key: string, path: string, msg: string) => run(key, async () => { await post(path); await load(); }, msg);
 
-  return (
-    <Card title="Needs you" className="approvals">
-      <ul className="list">
-        {commits.map((g) => (
-          <li key={`g${g.id}`} className="list-item request">
-            <div className="grow">
-              <div className="task-title"><span className="badge warn">Push</span><strong>{g.message}</strong></div>
-              <p className="muted small mono">{g.branch}{g.remote ? ` \u2192 ${g.remote}` : ' (no remote)'}</p>
-              {g.summary && <pre className="email-body">{g.summary}</pre>}
-              {g.error && <p className="error small">{g.error}</p>}
-              <div className="row-actions wrap">
-                <button className="btn small primary" disabled={busy !== null}
-                  onClick={() => act(`g${g.id}`, `/commits/${g.id}/approve`, 'Pushed')}>
-                  {g.status === 'failed' ? 'Try the push again' : 'Approve and push'}
-                </button>
-                <button className="btn small ghost" disabled={busy !== null}
-                  onClick={() => act(`gr${g.id}`, `/commits/${g.id}/reject`, 'Discarded')}>Discard</button>
+  const rows: ReactNode[] = [
+    ...budget.map((b) => (
+      <li key={`b${b.title}`} className="list-item">
+        <div className="grow"><span className="badge warn">Budget</span> {b.title}</div>
+        <div className="row-actions"><a className="btn small primary" href="#/settings">Open Settings</a></div>
+      </li>
+    )),
+    ...commits.map((g) => (
+      <li key={`g${g.id}`} className="list-item request">
+        <div className="grow">
+          <div className="task-title"><span className="badge warn">Push</span><strong>{g.message}</strong></div>
+          <p className="muted small mono">{g.branch}{g.remote ? ` → ${g.remote}` : ' (no remote)'}</p>
+          {g.summary && <pre className="email-body">{g.summary}</pre>}
+          {g.error && <p className="error small">{g.error}</p>}
+          <div className="row-actions wrap">
+            <button className="btn small primary" disabled={busy !== null}
+              onClick={() => act(`g${g.id}`, `/commits/${g.id}/approve`, 'Pushed')}>
+              {g.status === 'failed' ? 'Try the push again' : 'Approve and push'}
+            </button>
+            <button className="btn small ghost" disabled={busy !== null}
+              onClick={() => act(`gr${g.id}`, `/commits/${g.id}/reject`, 'Discarded')}>Discard</button>
+          </div>
+        </div>
+      </li>
+    )),
+    ...requests.map((r) => (
+      <li key={`r${r.id}`} className="list-item request">
+        <div className="grow">
+          <div className="task-title"><span className="badge warn">Your turn</span><strong>{r.title}</strong></div>
+          {r.why && <p className="muted small">{r.why}</p>}
+          {/* The steps are a whole procedure. Folded, so five open requests are still a list
+              you can scan rather than five essays. */}
+          {r.steps && (
+            <details className="request-steps">
+              <summary>How to do it</summary>
+              <Markdown text={r.steps} />
+            </details>
+          )}
+          {r.unblocks && <p className="muted small">Unblocks: {r.unblocks}</p>}
+          {answering === r.id ? (
+            <div className="stack">
+              <input autoFocus placeholder="Optional note back, e.g. the repo URL" value={note} onChange={(e) => setNote(e.target.value)} />
+              <div className="row-actions">
+                <button className="btn small primary" disabled={busy !== null} onClick={() => run(`req${r.id}`, async () => {
+                  await post(`/requests/${r.id}/done`, { answer: note });
+                  setAnswering(null); setNote('');
+                  await load();
+                }, 'Thanks. The team can carry on.')}>Save</button>
+                <button className="btn small ghost" onClick={() => setAnswering(null)}>Cancel</button>
               </div>
             </div>
-          </li>
-        ))}
-        {requests.map((r) => (
-          <li key={`r${r.id}`} className="list-item request">
-            <div className="grow">
-              <div className="task-title"><span className="badge warn">Your turn</span><strong>{r.title}</strong></div>
-              {r.why && <p className="muted small">{r.why}</p>}
-              {r.steps && <Markdown text={r.steps} />}
-              {r.unblocks && <p className="muted small">Unblocks: {r.unblocks}</p>}
-              {answering === r.id ? (
-                <div className="stack">
-                  <input autoFocus placeholder="Optional note back, e.g. the repo URL" value={note} onChange={(e) => setNote(e.target.value)} />
-                  <div className="row-actions">
-                    <button className="btn small primary" disabled={busy !== null} onClick={() => run(`req${r.id}`, async () => {
-                      await post(`/requests/${r.id}/done`, { answer: note });
-                      setAnswering(null); setNote('');
-                      await load();
-                    }, 'Thanks. The team can carry on.')}>Save</button>
-                    <button className="btn small ghost" onClick={() => setAnswering(null)}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="row-actions">
-                  <button className="btn small primary" disabled={busy !== null} onClick={() => { setNote(''); setAnswering(r.id); }}>I've done this</button>
-                  <button className="btn small ghost" disabled={busy !== null} onClick={() => run(`req${r.id}`, async () => { await post(`/requests/${r.id}/dismiss`); await load(); }, 'Dismissed')}>Not doing it</button>
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
-        {tweets.map((t) => (
-          <li key={`t${t.id}`} className="list-item">
-            <div className="grow"><span className="badge">X post</span> {t.text}</div>
+          ) : (
             <div className="row-actions">
-              <button className="btn small primary" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/approve`, 'Posted to X')}>Post</button>
-              <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/reject`, 'Discarded')}>Discard</button>
+              <button className="btn small primary" disabled={busy !== null} onClick={() => { setNote(''); setAnswering(r.id); }}>I've done this</button>
+              <button className="btn small ghost" disabled={busy !== null} onClick={() => run(`req${r.id}`, async () => { await post(`/requests/${r.id}/dismiss`); await load(); }, 'Dismissed')}>Not doing it</button>
             </div>
-          </li>
-        ))}
-        {emails.map((e) => (
-          <li key={`e${e.id}`} className="list-item clickable" onClick={() => setModal({ kind: 'email', id: e.id })}>
-            <div className="grow"><span className="badge">Email</span> To {e.to_addr}: <strong>{e.subject}</strong></div>
-            <div className="row-actions" onClick={(ev) => ev.stopPropagation()}>
-              <button className="btn small primary" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/approve`, 'Email sent')}>Send</button>
-              <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/reject`, 'Discarded')}>Discard</button>
-            </div>
-          </li>
-        ))}
-        {ads.map((a) => (
-          <li key={`a${a.id}`} className="list-item">
-            <div className="grow"><span className="badge">Meta ad</span> {a.name} · {(a.daily_budget_cents / 100).toFixed(2)}/day (paused)</div>
-            <div className="row-actions">
-              <button className="btn small primary" disabled={busy !== null} onClick={() => act(`a${a.id}`, `/ads/${a.id}/activate`, 'Campaign is live')}>Start spending</button>
-            </div>
-          </li>
-        ))}
-        {failed > 0 && <li className="list-item"><div className="grow"><span className="badge warn">Tasks</span> {failed} task{failed > 1 ? 's' : ''} failed — open the Failed tab to retry.</div></li>}
-      </ul>
+          )}
+        </div>
+      </li>
+    )),
+    ...tweets.map((t) => (
+      <li key={`t${t.id}`} className="list-item">
+        <div className="grow"><span className="badge">X post</span> {t.text}</div>
+        <div className="row-actions">
+          <button className="btn small primary" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/approve`, 'Posted to X')}>Post</button>
+          <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/reject`, 'Discarded')}>Discard</button>
+        </div>
+      </li>
+    )),
+    ...emails.map((e) => (
+      <li key={`e${e.id}`} className="list-item clickable" onClick={() => setModal({ kind: 'email', id: e.id })}>
+        <div className="grow"><span className="badge">Email</span> To {e.to_addr}: <strong>{e.subject}</strong></div>
+        <div className="row-actions" onClick={(ev) => ev.stopPropagation()}>
+          <button className="btn small primary" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/approve`, 'Email sent')}>Send</button>
+          <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/reject`, 'Discarded')}>Discard</button>
+        </div>
+      </li>
+    )),
+    ...ads.map((a) => (
+      <li key={`a${a.id}`} className="list-item">
+        <div className="grow"><span className="badge">Meta ad</span> {a.name} · {(a.daily_budget_cents / 100).toFixed(2)}/day (paused)</div>
+        <div className="row-actions">
+          <button className="btn small primary" disabled={busy !== null} onClick={() => act(`a${a.id}`, `/ads/${a.id}/activate`, 'Campaign is live')}>Start spending</button>
+        </div>
+      </li>
+    )),
+  ];
+  if (failed > 0) {
+    rows.push(
+      <li key="failed" className="list-item">
+        <div className="grow"><span className="badge warn">Tasks</span> {failed} task{failed > 1 ? 's' : ''} failed — open the Failed tab to retry.</div>
+      </li>,
+    );
+  }
+  if (blocked) {
+    rows.push(
+      <li key="blocked" className="list-item">
+        <div className="grow"><span className="badge warn">Tasks</span> {blocked.title}</div>
+      </li>,
+    );
+  }
+
+  const hidden = rows.length - NEEDS_YOU_CAP;
+  const visible = showAll ? rows : rows.slice(0, NEEDS_YOU_CAP);
+
+  return (
+    <Card title={rows.length > NEEDS_YOU_CAP ? `Needs you · ${rows.length}` : 'Needs you'} className="approvals">
+      <ul className="list">{visible}</ul>
+      {hidden > 0 && (
+        <button className="btn small ghost more-link" onClick={() => setShowAll(!showAll)}>
+          {showAll ? 'Show fewer' : `Show ${hidden} more`}
+        </button>
+      )}
     </Card>
   );
 }

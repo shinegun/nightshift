@@ -222,8 +222,16 @@ api.get('/companies/:slug', (c) => {
     const v = String(cfg[k] ?? '');
     return [k, SECRET_KEYS.has(k) ? { set: Boolean(v), hint: v ? `••••${v.slice(-4)}` : '' } : { set: Boolean(v), hint: '', value: v }];
   }));
+  // The list only ever shows a clamped one-line preview of these three, and `messages` is never
+  // read in the browser at all. Sending them whole made this payload ~350 KB, refetched on every
+  // activity event. TaskModal fetches the full row from /tasks/:id when you open one.
   const tasks = all<Task>(
-    `SELECT * FROM tasks WHERE company_id = ? AND status != 'cancelled'
+    `SELECT id, company_id, title, type, status, priority, source, steps, cost_usd,
+            created_at, started_at, finished_at, position,
+            substr(description, 1, 280) AS description,
+            substr(result, 1, 280) AS result,
+            substr(error, 1, 280) AS error
+       FROM tasks WHERE company_id = ? AND status != 'cancelled'
      ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'todo' THEN 1 ELSE 2 END,
               CASE WHEN status = 'todo' THEN position ELSE 0 END,
               CASE WHEN status = 'todo' THEN id ELSE 0 END,
