@@ -77,10 +77,11 @@ export const userCount = () => Number(get<{ n: number }>('SELECT COUNT(*) AS n F
 export const listUsers = (): PublicUser[] =>
   all<User>('SELECT * FROM users ORDER BY id').map(publicUser);
 
-export function addUser(username: string, name: string, password: string): PublicUser {
+export function addUser(username: string, name: string, password: string, { allowShortPassword = false } = {}): PublicUser {
   const clean = username.trim().toLowerCase();
   if (!/^[a-z0-9_-]{2,32}$/.test(clean)) throw new Error('Username must be 2-32 characters: a-z, 0-9, - or _');
-  if (password.length < 8) throw new Error('Password must be at least 8 characters');
+  if (!allowShortPassword && password.length < 8) throw new Error('Password must be at least 8 characters');
+  if (!password) throw new Error('A password is required');
   if (get('SELECT id FROM users WHERE username = ?', clean)) throw new Error(`"${clean}" already exists`);
   const { id } = run(
     'INSERT INTO users (username, name, password_hash, created_at) VALUES (?, ?, ?, ?)',
@@ -123,7 +124,19 @@ export const currentActor = (): PublicUser | null => actorStore.getStore() ?? nu
  */
 export function adoptLegacyPassword(password: string) {
   if (!password || userCount() > 0) return null;
-  const user = addUser('admin', 'Owner', password);
-  console.log('[users] moved DASHBOARD_PASSWORD to an account named "admin" — add others with: npm run user -- add');
-  return user;
+  try {
+    // The existing password is already in use, so the minimum length for a *new* one does not
+    // apply to it. Refusing it here would lock the owner out of their own dashboard at startup.
+    const user = addUser('admin', 'Owner', password, { allowShortPassword: true });
+    console.log('[users] moved DASHBOARD_PASSWORD to an account named "admin" — add others with: npm run user -- add');
+    if (password.length < 8) {
+      console.warn('[users] that password is under 8 characters. Change it with: npm run user -- password admin');
+    }
+    return user;
+  } catch (e) {
+    // Never let this stop the server booting: a dashboard that will not start is worse than one
+    // whose accounts need a manual fix.
+    console.error(`[users] could not migrate DASHBOARD_PASSWORD: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
 }

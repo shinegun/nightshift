@@ -1,3 +1,5 @@
+// First, so .env is in the environment before any module reads it.
+import './env.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Hono, type Context } from 'hono';
@@ -37,6 +39,11 @@ import { errMsg, localNow } from './util.ts';
 const PORT = Number(process.env.PORT ?? 4455);
 const PUBLIC_PORT = Number(process.env.PUBLIC_PORT ?? 4456);
 const HOST = process.env.HOST ?? '127.0.0.1';
+// The two listeners want opposite things, so they get separate addresses. The dashboard should be
+// as hard to reach as possible (localhost, or one private interface such as a tailnet address);
+// the public endpoint has to stay reachable by whatever tunnels it, which runs on this machine.
+// Defaults to HOST so existing single-address setups keep working.
+const PUBLIC_HOST = process.env.PUBLIC_HOST ?? HOST;
 const PASSWORD = process.env.DASHBOARD_PASSWORD ?? '';
 const PROD = process.env.NODE_ENV === 'production';
 const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', ...(process.env.ALLOWED_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)]);
@@ -726,9 +733,13 @@ app.onError((err, c) => {
 
 app.use('*', async (c, next) => {
   if (c.req.path.startsWith('/api/')) {
-    // DNS-rebinding guard: without a password, only answer to local host names.
+    // DNS-rebinding guard, for an unauthenticated dashboard only. It exists so a hostile page
+    // cannot point a name at 127.0.0.1 and drive an API that asks nobody who they are. Accounts
+    // answer that question, so the guard lifts once anyone can sign in — otherwise reaching the
+    // dashboard by any name other than localhost (a tailnet address, say) would be refused.
     const host = (c.req.header('host') ?? '').replace(/:\d+$/, '').toLowerCase();
-    if (!PASSWORD && !ALLOWED_HOSTS.has(host)) return c.json({ error: `Host "${host}" not allowed — add it to ALLOWED_HOSTS` }, 403);
+    const authenticated = Boolean(PASSWORD) || userCount() > 0;
+    if (!authenticated && !ALLOWED_HOSTS.has(host)) return c.json({ error: `Host "${host}" not allowed — add it to ALLOWED_HOSTS` }, 403);
     // CSRF guard: mutations must be same-origin JSON (forces a CORS preflight for any other site).
     if (c.req.method !== 'GET') {
       if (!(c.req.header('content-type') ?? '').includes('application/json')) return c.json({ error: 'Expected a JSON request' }, 415);
@@ -783,8 +794,8 @@ publicApp.get('/', (c) => c.text('Nightshift public endpoint'));
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
   console.log(`☾ Nightshift dashboard  http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}${PROD ? '' : '  (dev UI: http://localhost:5173)'}`);
 });
-serve({ fetch: publicApp.fetch, port: PUBLIC_PORT, hostname: HOST }, () => {
-  console.log(`  Public endpoint       http://${HOST}:${PUBLIC_PORT}  (tracker + waitlist + sites — safe to tunnel)`);
+serve({ fetch: publicApp.fetch, port: PUBLIC_PORT, hostname: PUBLIC_HOST }, () => {
+  console.log(`  Public endpoint       http://${PUBLIC_HOST}:${PUBLIC_PORT}  (tracker + waitlist + sites — safe to tunnel)`);
 });
 startScheduler();
 

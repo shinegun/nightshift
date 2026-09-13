@@ -79,3 +79,11 @@ test('a password containing a colon works, since basic auth splits on the first 
   assert.ok(verifyUser('colon', 'pass:with:colons'));
   assert.equal(verifyUser('colon', 'pass'), null);
 });
+
+test('an existing short password is migrated rather than refused, and a new one still is not', () => {
+  assert.throws(() => addUser('shorty', 'Shorty', 'abc'), /at least 8/);
+  // The legacy path allows it: refusing would lock the owner out of a dashboard they already use.
+  assert.ok(addUser('legacy', 'Legacy', 'abc', { allowShortPassword: true }));
+  assert.ok(verifyUser('legacy', 'abc'));
+  assert.throws(() => addUser('empty', 'Empty', '', { allowShortPassword: true }), /password is required/);
+});
