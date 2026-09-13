@@ -11,8 +11,9 @@
     "build": "vite build",
     "start": "NODE_ENV=production NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx server/index.ts",
     "x-authorize": "tsx scripts/x-authorize.mts",
+    "user": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx scripts/user.mts",
     "typecheck": "tsc --noEmit",
-    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test server/**/*.test.ts"
+    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test $(find server -name '*.test.ts' | sort)"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

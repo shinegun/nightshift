@@ -3,12 +3,13 @@ import { api, post } from './api.ts';
 import type { HealthKey, SettingsPayload } from './types.ts';
 import { HealthNote, toast, useAction, usd } from './lib.tsx';
 import { OpexPanel } from './Opex.tsx';
+import { PeoplePanel } from './People.tsx';
 
 interface Field {
   key: string; label: string; secret?: boolean; help?: string; type?: 'text' | 'number' | 'email' | 'url';
   options?: [string, string][]; placeholder?: string; showIf?: (v: Record<string, string>) => boolean; datalist?: boolean;
 }
-interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[]; panel?: 'opex' }
+interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[]; panel?: 'opex' | 'people' }
 
 const BOOL: [string, string][] = [['true', 'Ask me first'], ['false', 'Let agents act on their own']];
 const HOURS = Array.from({ length: 24 }, (_, h) => [String(h), `${String(h).padStart(2, '0')}:00`] as [string, string]);
@@ -98,6 +99,11 @@ const SECTIONS: Section[] = [
       { key: 'ads_max_daily_budget', label: 'Max daily budget per campaign', type: 'number', help: "Hard cap in your ad account's currency. Agents can't exceed it." },
       { key: 'meta_api_version', label: 'Graph API version' },
     ],
+  },
+  {
+    id: 'people', title: 'People', panel: 'people',
+    intro: 'Everyone here can do everything: approve email, post as the company, spend, change keys. Separate accounts are what let the activity log say who did what, and let one person be removed without changing anyone else\'s password.',
+    fields: [],
   },
   {
     id: 'opex', title: 'OpEx', panel: 'opex',
@@ -205,6 +211,7 @@ export function Settings({ onSaved }: { onSaved: () => void }) {
           {s.intro && <p className="muted small">{s.intro}</p>}
           {(SECTION_HEALTH[s.id] ?? []).map(([k, label]) => <HealthNote key={k} h={data.health[k]} label={label} link={false} showReady />)}
           {s.panel === 'opex' && <OpexPanel />}
+          {s.panel === 'people' && <PeoplePanel />}
           {(s.tests ?? (s.test ? [[s.test, '']] : [])).map(([what]) => results[what] && (
             <p key={what} className={results[what].ok ? 'ok small' : 'error small'}>{results[what].ok ? '✓ ' : '✗ '}{results[what].text}</p>
           ))}

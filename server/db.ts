@@ -16,6 +16,18 @@ PRAGMA busy_timeout = 5000;
 
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
+-- Everyone who may drive the agents. All of them can do everything; the point of separate rows is
+-- that actions can say who took them, and that one person can be removed without changing the
+-- other's password. Passwords are scrypt hashes, never the password itself.
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS companies (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE,
@@ -260,6 +272,12 @@ if (!all<{ name: string }>('PRAGMA table_info(tasks)').some((col) => col.name ==
   db.exec(`UPDATE tasks SET position = (
     SELECT rn FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY priority, id) AS rn FROM tasks) t
     WHERE t.id = tasks.id)`);
+}
+
+if (!all<{ name: string }>('PRAGMA table_info(activity)').some((col) => col.name === 'actor')) {
+  // Who caused this line. NULL means the agents did it on their own, which is most of them, and
+  // is exactly what you want to be able to tell apart once more than one person has a login.
+  db.exec('ALTER TABLE activity ADD COLUMN actor TEXT');
 }
 
 if (!all<{ name: string }>('PRAGMA table_info(tasks)').some((col) => col.name === 'messages')) {

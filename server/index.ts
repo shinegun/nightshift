@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { cors } from 'hono/cors';
-import { basicAuth } from 'hono/basic-auth';
+import { actorStore, adoptLegacyPassword, currentActor, listUsers, removeUser, touchUser, userCount, verifyUser } from './users.ts';
 import { streamSSE } from 'hono/streaming';
 import {
   DATA_DIR, all, companyBySlug, db, get, now, run,
@@ -138,6 +138,19 @@ const idOf = (c: Context) => {
 const body = async (c: Context) => (await c.req.json().catch(() => ({}))) as Record<string, any>;
 const strip = ({ config: _config, ...rest }: Company) => rest;
 const isRunning = (companyId: number) => Boolean(get(`SELECT id FROM tasks WHERE company_id = ? AND status = 'running'`, companyId));
+
+// People — who can drive the agents. Adding someone means choosing a password, which belongs in a
+// terminal rather than a browser tab, so that lives in `npm run user -- add`.
+api.get('/users', (c) => c.json({ users: listUsers(), me: currentActor() }));
+
+api.delete('/users/:username', (c) => {
+  try {
+    removeUser(c.req.param('username'));
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: errMsg(e) }, 400);
+  }
+});
 
 api.get('/state', (c) => c.json({
   companies: all<Company>('SELECT * FROM companies ORDER BY updated_at DESC').map((co) => ({ ...strip(co), metrics: companyMetrics(co) })),
@@ -702,9 +715,28 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-if (PASSWORD) {
-  const auth = basicAuth({ username: 'admin', password: PASSWORD });
-  app.use('*', (c, next) => (/^\/(public\/|t\.js|s\/)/.test(c.req.path) ? next() : auth(c, next)));
+// Accounts, not one shared password: everyone can do everything, but actions can say who took
+// them and one person can be removed without changing the other's login.
+adoptLegacyPassword(PASSWORD);
+
+if (userCount() > 0) {
+  const challenge = (c: Context) =>
+    c.json({ error: 'Sign in to Nightshift' }, 401, { 'WWW-Authenticate': 'Basic realm="Nightshift", charset="UTF-8"' });
+
+  app.use('*', async (c, next) => {
+    if (/^\/(public\/|t\.js|s\/)/.test(c.req.path)) return next();
+    const [scheme, encoded] = (c.req.header('authorization') ?? '').split(' ');
+    if (scheme !== 'Basic' || !encoded) return challenge(c);
+    // Only the first colon separates them, so a password may contain colons.
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    const split = decoded.indexOf(':');
+    const user = split < 0 ? null : verifyUser(decoded.slice(0, split), decoded.slice(split + 1));
+    if (!user) return challenge(c);
+    touchUser(user.id);
+    // Everything downstream runs inside the actor's context, so activity() can stamp it without
+    // every handler having to pass it along.
+    return actorStore.run(user, () => next());
+  });
 }
 
 app.route('/api', api);

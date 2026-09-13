@@ -47,7 +47,7 @@ export interface AdCampaign {
 
 export interface PaymentLink { id: number; name: string; amount_cents: number; currency: string; url: string; created_at: string }
 export interface Report { id: number; day: string; content: string; created_at: string }
-export interface Activity { id: number; ts: string; text: string }
+export interface Activity { id: number; ts: string; text: string; actor: string | null }
 export interface Version { id: string; label: string; ts: string }
 export interface SiteFile { path: string; size: number }
 export interface PublishEntry { path: string; size: number; reason: string }
@@ -87,6 +87,11 @@ export interface DashboardData {
   running: boolean;
   spendTotal: number;
   night: boolean;
+}
+
+/** Someone who can sign in. The password hash never leaves the server. */
+export interface PublicUser {
+  id: number; username: string; name: string; created_at: string; last_seen_at: string | null;
 }
 
 export interface AppState {

@@ -173,6 +173,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .terminal .line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .terminal .line:last-child { color: #fff; }
 .terminal .ts { color: #6d6b62; margin-right: .7rem; }
+/* Only on lines a person caused; agent lines carry no actor and stay unlabelled. */
+.terminal .actor { color: var(--lamp); margin-right: .5rem; }
 .terminal .dim { color: #6d6b62; }
 .dash-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .dash-title { display: flex; gap: 1rem; align-items: center; min-width: 0; }

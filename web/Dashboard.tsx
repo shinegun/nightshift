@@ -25,7 +25,12 @@ function Terminal({ lines }: { lines: Activity[] }) {
   return (
     <div className="terminal" ref={ref} aria-label="Activity feed">
       {lines.length === 0 ? <div className="line dim">&gt; Waiting for activity…</div> : lines.map((l) => (
-        <div className="line" key={l.id}><span className="ts">{new Date(l.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{l.text}</div>
+        <div className="line" key={l.id}>
+          <span className="ts">{new Date(l.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          {/* No actor means the agents did this on their own, which is most lines and needs no label. */}
+          {l.actor && <span className="actor">{l.actor}</span>}
+          {l.text}
+        </div>
       ))}
     </div>
   );
