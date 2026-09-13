@@ -17,3 +17,4 @@ data/
 # Noise
 .DS_Store
 *.log
+docs/*.visual-check.json

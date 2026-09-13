@@ -8,7 +8,8 @@ import { fetchUrl, webSearch } from '../integrations/search.ts';
 import { emailConfigured } from '../integrations/email.ts';
 import { deploySite } from '../integrations/vercel.ts';
 import { createPaymentLink } from '../integrations/stripe.ts';
-import { queueAd, queueEmail, queueTweet } from '../actions.ts';
+import { queueAd, queueCommit, queueEmail, queueTweet } from '../actions.ts';
+import { status as gitStatus } from '../git.ts';
 import { deleteSiteFile, listFiles, readSiteFile, writeSiteFile } from '../sites.ts';
 import { truncate } from '../util.ts';
 
@@ -162,6 +163,35 @@ const TOOLS: Record<string, Tool> = {
         : '';
       const warn = r.plan.warnings.length ? ` Warnings: ${r.plan.warnings.join(' ')}` : '';
       return `Deployed ${r.published} files (${kb} KB). Live at ${r.url}.${held}${gaps}${warn}`;
+    },
+  },
+
+  commit_changes: {
+    description:
+      'Record your file changes in the company\'s git repository and push them to a branch, so the work is saved and someone can review it. '
+      + 'Use this once at the end of a task that changed files, not after each edit. It commits everything currently changed in the site folder, '
+      + 'so say what the whole change does. It goes to a branch and waits for the owner to approve the push; it never writes to their main branch directly.',
+    params: {
+      message: str('Commit message: one line saying what changed and why'),
+      branch: str('Branch name (optional). Defaults to one named for today.'),
+    },
+    required: ['message'], limit: 2,
+    run: async (a, { company }) => {
+      const r = await queueCommit(company, { message: String(a.message), branch: a.branch ? String(a.branch) : undefined });
+      return r.status === 'pending_approval'
+        ? `Commit prepared on branch ${r.branch} with ${r.files} changed file(s). It is waiting for the owner to approve the push.`
+        : `Pushed ${'sha' in r ? r.sha.slice(0, 8) : ''} to ${r.branch}.`;
+    },
+  },
+
+  git_status: {
+    description: 'Check the company\'s git repository: current branch, how many files differ from the last commit, and whether a remote exists. Read-only.',
+    params: {}, limit: 3,
+    run: async (_a, { company }) => {
+      const s = await gitStatus(company.slug);
+      if (!s.repo) return 'This company has no git repository. Files are still saved and deployable; they are just not version-controlled.';
+      const files = s.changedCount ? `${s.changedCount} changed file(s): ${s.changed.slice(0, 25).join(', ')}` : 'nothing changed since the last commit';
+      return `On branch ${s.branch}. ${files}. Remote: ${s.remote ?? 'none'}.${s.ahead ? ` ${s.ahead} commit(s) not pushed.` : ''}`;
     },
   },
 
@@ -334,7 +364,7 @@ const TOOLS: Record<string, Tool> = {
 };
 
 const COMMON = ['list_tasks', 'create_task', 'ask_owner', 'get_metrics', 'read_document', 'write_document'];
-const SITE = ['list_files', 'read_file', 'write_file', 'delete_file', 'deploy_site'];
+const SITE = ['list_files', 'read_file', 'write_file', 'delete_file', 'deploy_site', 'git_status', 'commit_changes'];
 const BY_TYPE: Record<TaskType, string[]> = {
   fix: [...SITE, 'web_search', 'fetch_url', 'create_payment_link'],
   feature: [...SITE, 'web_search', 'fetch_url', 'create_payment_link'],

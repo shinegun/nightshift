@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nightshift Backend",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/shinegun/nightshift",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "d03de3df26ac79d1e6eeac714fd008f6b30b21d0"
+    },
+    "viewBox": [1320, 620],
+    "views": [
+      { "id": "doors", "label": "Two doors", "focus": ["owners", "api", "publicport"], "note": "Port 4455 holds everything and needs an account; 4456 serves deployed sites and has no login." },
+      { "id": "work-loop", "label": "The work loop", "focus": ["scheduler", "runner", "tools", "db"], "note": "A 30-second tick starts one task, which becomes a conversation of up to 25 steps." },
+      { "id": "money", "label": "Where money goes", "focus": ["runner", "llm", "db"], "note": "Every model call passes one gate, and every call writes the spend row that gate reads." },
+      { "id": "outward", "label": "Leaving the building", "focus": ["tools", "actions", "integrations", "publish", "vercel"], "note": "Nothing reaches a customer without passing the approval gate or the publish filter." }
+    ]
+  },
+  "components": [
+    {
+      "id": "owners", "type": "external", "label": "You and Ilham", "sublabel": "browser, over the tailnet",
+      "pos": [60, 60], "size": [180, 74]
+    },
+    {
+      "id": "api", "type": "backend", "label": "Dashboard API", "sublabel": "index.ts :4455", "tag": "account required",
+      "pos": [400, 60], "size": [180, 74],
+      "sources": [{ "path": "server/index.ts", "line": 36, "label": "PORT 4455" }]
+    },
+    {
+      "id": "actions", "type": "security", "label": "Approval gate", "sublabel": "actions.ts", "tag": "holds until you say yes",
+      "pos": [740, 60], "size": [180, 74],
+      "sources": [{ "path": "server/actions.ts", "label": "queueEmail, queueTweet, queueAd" }]
+    },
+    {
+      "id": "integrations", "type": "external", "label": "Email, X, Meta, Stripe", "sublabel": "the outside world",
+      "pos": [1080, 60], "size": [180, 74],
+      "sources": [{ "path": "server/integrations/email.ts", "label": "one of six providers" }]
+    },
+    {
+      "id": "scheduler", "type": "backend", "label": "Scheduler", "sublabel": "30-second tick", "tag": "the only self-starter",
+      "pos": [60, 270], "size": [180, 74],
+      "sources": [{ "path": "server/scheduler.ts", "line": 108, "label": "setInterval 30s" }]
+    },
+    {
+      "id": "runner", "type": "backend", "label": "Agent runner", "sublabel": "up to 25 steps", "tag": "nothing checks its work",
+      "pos": [400, 270], "size": [180, 74],
+      "sources": [{ "path": "server/agents/runner.ts", "line": 78, "label": "maxSteps" }]
+    },
+    {
+      "id": "tools", "type": "backend", "label": "Agent tools", "sublabel": "19 of them", "tag": "no git, no shell",
+      "pos": [740, 270], "size": [180, 74],
+      "sources": [{ "path": "server/agents/tools.ts", "label": "tool definitions" }]
+    },
+    {
+      "id": "publish", "type": "security", "label": "Publish filter", "sublabel": "publish.ts", "tag": "stops on a leaked key",
+      "pos": [1080, 270], "size": [180, 74],
+      "sources": [{ "path": "server/publish.ts", "line": 35, "label": "secret detection" }]
+    },
+    {
+      "id": "llm", "type": "backend", "label": "llm.ts", "sublabel": "every model call, to DeepSeek", "tag": "daily + monthly cap",
+      "pos": [60, 470], "size": [180, 74],
+      "sources": [{ "path": "server/llm.ts", "line": 53, "label": "budgetStop" }]
+    },
+    {
+      "id": "db", "type": "database", "label": "SQLite", "sublabel": "node:sqlite, WAL", "tag": "20 tables",
+      "pos": [400, 470], "size": [180, 74],
+      "sources": [{ "path": "server/db.ts", "label": "schema and migrations" }]
+    },
+    {
+      "id": "publicport", "type": "backend", "label": "Public surface", "sublabel": ":4456, no login", "tag": "tracker, waitlist, sites",
+      "pos": [740, 470], "size": [180, 74],
+      "sources": [{ "path": "server/index.ts", "line": 37, "label": "PUBLIC_PORT 4456" }]
+    },
+    {
+      "id": "vercel", "type": "cloud", "label": "Vercel", "sublabel": "file upload, not git",
+      "pos": [1080, 470], "size": [180, 74],
+      "sources": [{ "path": "server/integrations/vercel.ts", "label": "v13/deployments" }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "One Node process, server/",
+      "wraps": ["api", "actions", "scheduler", "runner", "tools", "publish", "llm", "db", "publicport"]
+    },
+    {
+      "kind": "security-group",
+      "label": "Nothing leaves without passing here",
+      "wraps": ["actions", "publish"]
+    }
+  ],
+  "connections": [
+    { "id": "sign-in", "from": "owners", "to": "api", "label": "signs in", "variant": "emphasis" },
+    { "id": "run-now", "from": "api", "to": "runner", "label": "run now", "labelDy": 45 },
+    { "id": "approve", "from": "api", "to": "actions", "label": "you approve", "variant": "security" },
+    { "id": "tick-starts-task", "from": "scheduler", "to": "runner", "label": "one task per tick", "variant": "emphasis" },
+    { "id": "tool-calls", "from": "runner", "to": "tools", "label": "tool calls", "variant": "emphasis" },
+    { "id": "every-step", "from": "runner", "to": "llm", "label": "every step", "variant": "emphasis" },
+    { "id": "task-state", "from": "runner", "to": "db", "label": "tasks, steps, logs", "labelDy": 45 },
+    { "id": "spend-row", "from": "llm", "to": "db", "label": "records spend", "labelDy": 34 },
+    { "id": "queued-outward", "from": "tools", "to": "actions", "label": "email, posts, ads" },
+    { "id": "sent", "from": "actions", "to": "integrations", "label": "sent on approval", "variant": "security" },
+    { "id": "deploy", "from": "tools", "to": "publish", "label": "deploy" },
+    { "id": "upload", "from": "publish", "to": "vercel", "label": "reachable files only", "labelDy": 45 },
+    { "id": "live-site", "from": "vercel", "to": "publicport", "label": "visits, waitlist" },
+    { "id": "visits", "from": "publicport", "to": "db", "label": "visits, signups", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two doors",
+      "items": [
+        "4455 carries every action that spends money or sends mail",
+        "4456 exists so a deployed site can report a visit, and nothing more",
+        "4455 currently binds 0.0.0.0; it should bind localhost and reach you over Tailscale"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The work loop",
+      "items": [
+        "Nothing is event-driven: a 30-second tick is the only self-starter",
+        "One task runs at a time, as a conversation of up to 25 steps",
+        "A budget stop saves that conversation, so the retry resumes instead of paying twice"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Choke points",
+      "items": [
+        "llm.ts: every model call to DeepSeek, and where the daily and monthly caps bite",
+        "actions.ts: everything outward-facing waits here for your approval",
+        "publish.ts: a deploy that would ship an API key stops and names the file"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What is missing",
+      "items": [
+        "No step verifies an agent's work before the task is filed as done",
+        "No git tool: agents cannot commit or open a pull request, so you do it",
+        "A task's conversation only grows; one spent 2.59M prompt tokens over 25 calls"
+      ]
+    }
+  ]
+}

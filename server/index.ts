@@ -9,7 +9,7 @@ import { actorStore, adoptLegacyPassword, currentActor, listUsers, removeUser, t
 import { streamSSE } from 'hono/streaming';
 import {
   DATA_DIR, all, companyBySlug, db, get, now, run,
-  type AdCampaign, type Company, type Doc, type Email, type Expense, type Request, type Task, type Tweet,
+  type AdCampaign, type Commit, type Company, type Doc, type Email, type Expense, type Request, type Task, type Tweet,
 } from './db.ts';
 import { COMPANY_KEYS, SECRET_KEYS, companyConfig, flag, num, publicSettings, setting, updateSettings } from './settings.ts';
 import { activity, emit, subscribe } from './events.ts';
@@ -23,7 +23,7 @@ import { createPaymentLink, testStripe } from './integrations/stripe.ts';
 import { testX } from './integrations/x.ts';
 import { testMeta } from './integrations/meta.ts';
 import { opex, opexSummary } from './costs.ts';
-import { deliverEmail, deliverTweet, queueAd, queueEmail, queueTweet, setAdStatus } from './actions.ts';
+import { deliverEmail, deliverTweet, pushCommit, queueAd, queueEmail, queueTweet, setAdStatus } from './actions.ts';
 import { bootstrap, createCompany } from './agents/bootstrap.ts';
 import { chatWithCofounder } from './agents/chat.ts';
 import { morningReport, planNight } from './agents/night.ts';
@@ -31,6 +31,7 @@ import { runTask } from './agents/runner.ts';
 import { companyMetrics, insertTask, integrationStatus, saveDocument } from './agents/tools.ts';
 import { isNight, startScheduler } from './scheduler.ts';
 import { clearIssue, clearIssuesForSettings, dismissIssue, integrationHealth, openIssues, reportIssue, type IntegrationKey } from './health.ts';
+import { decisions } from './decisions.ts';
 import { errMsg, localNow } from './util.ts';
 
 const PORT = Number(process.env.PORT ?? 4455);
@@ -232,6 +233,9 @@ api.get('/companies/:slug', (c) => {
     docs: all(`SELECT id, kind, title, created_at, updated_at FROM documents WHERE company_id = ?
                ORDER BY CASE kind WHEN 'mission' THEN 0 WHEN 'research' THEN 1 WHEN 'roadmap' THEN 2 ELSE 3 END, updated_at DESC`, co.id),
     requests: all<Request>(`SELECT * FROM requests WHERE company_id = ? AND status = 'open' ORDER BY id`, co.id),
+    // The same list the morning brief is built from, so the two can never disagree.
+    decisions: decisions(co),
+    commits: all<Commit>('SELECT * FROM commits WHERE company_id = ? ORDER BY id DESC LIMIT 20', co.id),
     emails: all<Email>('SELECT * FROM emails WHERE company_id = ? ORDER BY id DESC LIMIT 60', co.id),
     tweets: all<Tweet>('SELECT * FROM tweets WHERE company_id = ? ORDER BY id DESC LIMIT 30', co.id),
     ads: all<AdCampaign>('SELECT * FROM ad_campaigns WHERE company_id = ? ORDER BY id DESC', co.id),
@@ -541,6 +545,26 @@ api.patch('/tweets/:id', async (c) => {
   if (!text || text.length > 280) throw bad('Posts must be 1–280 characters');
   run(`UPDATE tweets SET text = ?, status = 'pending_approval', error = NULL WHERE id = ? AND status IN ('pending_approval','failed')`, text, t.id);
   emit('tweet', t.company_id);
+  return c.json({ ok: true });
+});
+
+// Git — a commit an agent prepared, waiting on the owner to approve the push.
+
+const commitById = (c: Context) => {
+  const row = get<Commit>('SELECT * FROM commits WHERE id = ?', idOf(c));
+  if (!row) throw new HttpError(404, 'Commit not found');
+  return row;
+};
+
+api.post('/commits/:id/approve', async (c) => {
+  const row = commitById(c);
+  if (!['pending_approval', 'failed'].includes(row.status)) throw bad(`Commit is ${row.status}`);
+  return c.json(await pushCommit(row.id));
+});
+api.post('/commits/:id/reject', (c) => {
+  const row = commitById(c);
+  run(`UPDATE commits SET status = 'rejected' WHERE id = ?`, row.id);
+  emit('commits', row.company_id);
   return c.json({ ok: true });
 });
 

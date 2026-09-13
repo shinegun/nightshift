@@ -1,0 +1,452 @@
+<title>Nightshift Backend Map</title>
+<style>
+  /* Nightshift's own tokens — warm paper by day, ink by night. Kept in step with web/styles.css. */
+  :root {
+    --bg: #f5f2ea; --surface: #fffdf8; --surface-2: #efebe0;
+    --ink: #1c1b18; --ink-2: #57544b; --ink-3: #8a867a; --line: #e0dbcd;
+    --accent: #3d3fa8; --accent-soft: #e6e6f7; --lamp: #c7780f;
+    --ok: #2f7a4a; --warn: #a45d06; --err: #b3261e;
+    --terminal: #15161b; --terminal-ink: #d9d6c8;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111216; --surface: #191a20; --surface-2: #22232b;
+      --ink: #eceae3; --ink-2: #b4b1a6; --ink-3: #7f7c73; --line: #2d2e37;
+      --accent: #8b8ef0; --accent-soft: #262852; --lamp: #e8a33d;
+      --ok: #6cc58f; --warn: #e8a33d; --err: #f28b82;
+      --terminal: #0b0c0f; --terminal-ink: #d9d6c8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111216; --surface: #191a20; --surface-2: #22232b;
+    --ink: #eceae3; --ink-2: #b4b1a6; --ink-3: #7f7c73; --line: #2d2e37;
+    --accent: #8b8ef0; --accent-soft: #262852; --lamp: #e8a33d;
+    --ok: #6cc58f; --warn: #e8a33d; --err: #f28b82;
+    --terminal: #0b0c0f; --terminal-ink: #d9d6c8;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: flex; flex-direction: column; gap: 3rem; }
+
+  header.top { display: flex; flex-direction: column; gap: .9rem; }
+  .eyebrow { font: 600 .72rem/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--lamp); }
+  h1 { font: 400 2.6rem/1.1 var(--serif); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+  .thesis { font-size: 1.12rem; color: var(--ink-2); max-width: 40rem; margin: 0; }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .fact { background: var(--surface); padding: .85rem 1rem; }
+  .fact b { display: block; font: 600 1.45rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+  .fact span { font-size: .78rem; color: var(--ink-3); }
+
+  section { display: flex; flex-direction: column; gap: 1rem; }
+  h2 { font: 400 1.6rem/1.2 var(--serif); margin: 0; text-wrap: balance; }
+  h2 .n { font: 600 .7rem/1 var(--mono); color: var(--lamp); letter-spacing: .12em; vertical-align: .5em; margin-right: .55rem; }
+  h3 { font: 600 .78rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); margin: .6rem 0 0; }
+  p { margin: 0; max-width: 42rem; }
+  p + p { margin-top: .7rem; }
+  code { font: .88em var(--mono); background: var(--surface-2); padding: .1em .35em; border-radius: 4px; }
+  a { color: var(--accent); }
+
+  figure { margin: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .canvas { overflow-x: auto; padding: 1.4rem 1.2rem .6rem; }
+  figure svg { display: block; width: 100%; min-width: 34rem; max-width: 100%; height: auto; }
+  figcaption { border-top: 1px solid var(--line); padding: .75rem 1.2rem; font-size: .87rem; color: var(--ink-2); background: var(--surface-2); }
+
+  /* Diagram vocabulary, shared across every figure. */
+  .box { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.2; }
+  .box.soft { fill: var(--surface-2); stroke: var(--line); }
+  .box.locked { stroke: var(--accent); stroke-width: 1.8; fill: var(--accent-soft); }
+  .box.gap { fill: none; stroke: var(--err); stroke-width: 1.6; stroke-dasharray: 6 4; }
+  .zone { fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 3 4; }
+  .t { font: 12.5px var(--sans); fill: var(--ink); }
+  .t.sm { font-size: 11px; fill: var(--ink-2); }
+  .t.mono { font-family: var(--mono); font-size: 11.5px; }
+  .t.head { font: 600 11px var(--mono); letter-spacing: .08em; fill: var(--ink-3); }
+  .t.gapt { fill: var(--err); }
+  .t.acc { fill: var(--accent); }
+  .t.lamp { fill: var(--lamp); }
+  .edge { stroke: var(--ink-3); stroke-width: 1.3; fill: none; }
+  .edge.acc { stroke: var(--accent); stroke-width: 1.6; }
+  .edge.lamp { stroke: var(--lamp); stroke-width: 1.6; }
+  .edge.gap { stroke: var(--err); stroke-dasharray: 6 4; }
+  .edge.none { stroke: var(--err); stroke-width: 1.4; stroke-dasharray: 2 5; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  th, td { text-align: left; padding: .6rem .85rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 .7rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); background: var(--surface-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mod { font-family: var(--mono); font-size: .84rem; white-space: nowrap; }
+  td.mod b { color: var(--accent); font-weight: 600; }
+
+  .gaps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .75rem; }
+  .gaps li { display: grid; grid-template-columns: auto 1fr; gap: .8rem; align-items: baseline;
+    border-left: 2px solid var(--err); padding: .15rem 0 .15rem .9rem; }
+  .gaps .tag { font: 600 .68rem/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--err); white-space: nowrap; }
+  .gaps p { font-size: .93rem; }
+
+  footer { border-top: 1px solid var(--line); padding-top: 1.2rem; font-size: .85rem; color: var(--ink-3); }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">☾ Nightshift · server/</div>
+    <h1>How the backend actually works</h1>
+    <p class="thesis">One Node process, two ports, a 30-second heartbeat, and a tool-using agent loop in the middle.
+      Everything below is read off the code as it stands today, including the parts that aren't finished.</p>
+    <div class="facts">
+      <div class="fact"><b>27</b><span>TypeScript modules</span></div>
+      <div class="fact"><b>2</b><span>listening ports</span></div>
+      <div class="fact"><b>20</b><span>SQLite tables</span></div>
+      <div class="fact"><b>19</b><span>tools the agent can call</span></div>
+      <div class="fact"><b>30s</b><span>scheduler tick</span></div>
+      <div class="fact"><b>25</b><span>max steps per task</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="n">01</span>Two doors, one locked</h2>
+    <p>The same process listens twice. Port 4455 is the dashboard and its API: everything that can spend money,
+      send mail, or read the inbox. Port 4456 is the surface that deployed websites talk to, and it is deliberately
+      tiny — three route groups, no authentication, because a visitor's browser has no credentials to offer.</p>
+
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 700 300" role="img" aria-label="Port 4455 carries the whole authenticated dashboard API; port 4456 exposes only the tracker, waitlist and hosted site routes without authentication.">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text class="t head" x="0" y="14">WHO IS ASKING</text>
+          <rect class="box" x="0" y="26" width="140" height="46" rx="7"/>
+          <text class="t" x="70" y="46" text-anchor="middle">You and Ilham</text>
+          <text class="t sm" x="70" y="62" text-anchor="middle">over the tailnet</text>
+
+          <rect class="box soft" x="0" y="150" width="140" height="46" rx="7"/>
+          <text class="t" x="70" y="170" text-anchor="middle">A visitor's browser</text>
+          <text class="t sm" x="70" y="186" text-anchor="middle">on the public internet</text>
+
+          <g color="var(--accent)">
+            <line class="edge acc" x1="140" y1="49" x2="232" y2="49" marker-end="url(#a1)"/>
+          </g>
+          <text class="t sm acc" x="186" y="40" text-anchor="middle">signs in</text>
+
+          <g color="var(--ink-3)">
+            <line class="edge" x1="140" y1="173" x2="232" y2="173" marker-end="url(#a1)"/>
+          </g>
+          <text class="t sm" x="186" y="164" text-anchor="middle">no login</text>
+
+          <rect class="box locked" x="236" y="26" width="150" height="46" rx="7"/>
+          <text class="t mono acc" x="311" y="45" text-anchor="middle">:4455</text>
+          <text class="t sm" x="311" y="62" text-anchor="middle">dashboard API</text>
+
+          <rect class="box" x="236" y="150" width="150" height="46" rx="7"/>
+          <text class="t mono" x="311" y="169" text-anchor="middle">:4456</text>
+          <text class="t sm" x="311" y="186" text-anchor="middle">public surface</text>
+
+          <g color="var(--accent)">
+            <line class="edge acc" x1="386" y1="49" x2="470" y2="49" marker-end="url(#a1)"/>
+          </g>
+          <g color="var(--ink-3)">
+            <line class="edge" x1="386" y1="173" x2="470" y2="173" marker-end="url(#a1)"/>
+          </g>
+
+          <rect class="zone" x="474" y="12" width="226" height="106" rx="8"/>
+          <text class="t head" x="486" y="30">EVERYTHING</text>
+          <text class="t mono" x="486" y="50">companies · tasks · emails</text>
+          <text class="t mono" x="486" y="68">settings · keys · spend</text>
+          <text class="t mono" x="486" y="86">approve · deploy · post</text>
+          <text class="t sm acc" x="486" y="106">behind an account, always</text>
+
+          <rect class="zone" x="474" y="136" width="226" height="88" rx="8"/>
+          <text class="t head" x="486" y="154">THREE ROUTES ONLY</text>
+          <text class="t mono" x="486" y="174">/t.js · /public/track</text>
+          <text class="t mono" x="486" y="192">/public/waitlist</text>
+          <text class="t mono" x="486" y="210">/s/&lt;slug&gt;/*</text>
+
+          <rect class="box gap" x="0" y="240" width="700" height="44" rx="7"/>
+          <text class="t gapt" x="16" y="258">Today 4455 binds 0.0.0.0, so the locked door still faces every network the box is on.</text>
+          <text class="t sm gapt" x="16" y="275">Set HOST=127.0.0.1 and put it behind Tailscale; the public port is the only one that should be reachable.</text>
+        </svg>
+      </div>
+      <figcaption>One process, two listeners. The split exists so a deployed site can report a visit without ever
+        being able to reach the API that holds your keys.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>The heartbeat</h2>
+    <p>Nothing is event-driven. A <code>setInterval</code> fires every 30 seconds and walks the same short list,
+      and a second one syncs integrations every 5 minutes. The budget is checked on three different edges here,
+      and the morning report is deliberately not one of them — it is how you find out the day stopped.</p>
+
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 700 330" role="img" aria-label="Every 30 seconds the scheduler checks for a morning report, then night planning, then runs one queued task, with budget gates on planning and the queue but deliberately not on the report.">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="0" y="120" width="118" height="52" rx="7"/>
+          <text class="t mono" x="59" y="142" text-anchor="middle">tick()</text>
+          <text class="t sm" x="59" y="159" text-anchor="middle">every 30s</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="118" y1="146" x2="168" y2="146" marker-end="url(#a2)"/></g>
+
+          <rect class="box soft" x="172" y="118" width="128" height="56" rx="7"/>
+          <text class="t" x="236" y="140" text-anchor="middle">Busy or paused?</text>
+          <text class="t sm" x="236" y="158" text-anchor="middle">one task at a time</text>
+
+          <g color="var(--ink-3)">
+            <path class="edge" d="M300 134 L330 134 L330 46 L372 46" marker-end="url(#a2)"/>
+            <path class="edge" d="M300 146 L340 146 L340 146 L372 146" marker-end="url(#a2)"/>
+            <path class="edge" d="M300 158 L330 158 L330 250 L372 250" marker-end="url(#a2)"/>
+          </g>
+
+          <rect class="box" x="376" y="22" width="150" height="48" rx="7"/>
+          <text class="t" x="451" y="42" text-anchor="middle">Morning report</text>
+          <text class="t sm" x="451" y="58" text-anchor="middle">once a day, after 07:00</text>
+
+          <rect class="box" x="376" y="122" width="150" height="48" rx="7"/>
+          <text class="t" x="451" y="142" text-anchor="middle">Night planning</text>
+          <text class="t sm" x="451" y="158" text-anchor="middle">once a night</text>
+
+          <rect class="box" x="376" y="226" width="150" height="48" rx="7"/>
+          <text class="t" x="451" y="246" text-anchor="middle">Work the queue</text>
+          <text class="t sm" x="451" y="262" text-anchor="middle">one task per tick</text>
+
+          <g color="var(--lamp)">
+            <line class="edge lamp" x1="526" y1="146" x2="576" y2="146" marker-end="url(#a2)"/>
+            <line class="edge lamp" x1="526" y1="250" x2="576" y2="250" marker-end="url(#a2)"/>
+          </g>
+          <text class="t sm lamp" x="551" y="138" text-anchor="middle">gate</text>
+          <text class="t sm lamp" x="551" y="242" text-anchor="middle">gate</text>
+
+          <rect class="box" x="580" y="122" width="120" height="48" rx="7"/>
+          <text class="t mono lamp" x="640" y="142" text-anchor="middle">budgetLeft()</text>
+          <text class="t sm" x="640" y="158" text-anchor="middle">daily + monthly</text>
+
+          <rect class="box" x="580" y="226" width="120" height="48" rx="7"/>
+          <text class="t mono lamp" x="640" y="243" text-anchor="middle">nightBudget</text>
+          <text class="t sm" x="640" y="259" text-anchor="middle">keeps back 20%</text>
+
+          <line class="edge" x1="526" y1="46" x2="700" y2="46" stroke-dasharray="3 4"/>
+          <text class="t sm" x="530" y="38">no gate, on purpose</text>
+
+          <rect class="box soft" x="0" y="286" width="700" height="38" rx="7"/>
+          <text class="t sm" x="16" y="303">Before the night reserve existed, night work spent the entire daily cap between 01:00 and 02:38</text>
+          <text class="t sm" x="16" y="318">and left the 07:00 report with nothing to write with. That is why two of these gates differ.</text>
+        </svg>
+      </div>
+      <figcaption>The scheduler is the only thing that starts work on its own. Night runs tasks back to back with
+        no gap, which is why it needs a tighter gate than the day does.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>The agent loop, and the step that isn't there</h2>
+    <p>This is the core. A task becomes a conversation: system prompt, the task, then up to 25 rounds of
+      model reply → tool calls → results fed back. Every model call passes through <code>llm.ts</code>, which is
+      where the budget can stop it mid-task, and where the conversation now gets saved so the retry resumes
+      instead of paying twice.</p>
+    <p>The loop has no step that checks whether the work is any good. SafaStack ships a test suite, a copy check
+      and a schema validator; the agent that edits SafaStack has never run one of them.</p>
+
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 700 340" role="img" aria-label="The agent loop runs model call to tool call up to 25 times, then writes a summary and marks the task done, with no verification step between the summary and done.">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect class="box soft" x="0" y="70" width="112" height="50" rx="7"/>
+          <text class="t" x="56" y="90" text-anchor="middle">Task</text>
+          <text class="t sm" x="56" y="106" text-anchor="middle">title + description</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="112" y1="95" x2="158" y2="95" marker-end="url(#a3)"/></g>
+
+          <rect class="box" x="162" y="66" width="140" height="58" rx="7"/>
+          <text class="t mono" x="232" y="88" text-anchor="middle">chat()</text>
+          <text class="t sm" x="232" y="106" text-anchor="middle">model reply</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="302" y1="95" x2="356" y2="95" marker-end="url(#a3)"/></g>
+          <text class="t sm" x="329" y="86" text-anchor="middle">calls</text>
+
+          <rect class="box" x="360" y="66" width="140" height="58" rx="7"/>
+          <text class="t" x="430" y="88" text-anchor="middle">19 tools</text>
+          <text class="t sm" x="430" y="106" text-anchor="middle">files · web · email · deploy</text>
+
+          <g color="var(--ink-3)">
+            <path class="edge" d="M430 124 L430 152 L232 152 L232 128" marker-end="url(#a3)"/>
+          </g>
+          <text class="t sm" x="331" y="146" text-anchor="middle">results appended · up to 25 rounds</text>
+
+          <g color="var(--lamp)"><line class="edge lamp" x1="232" y1="66" x2="232" y2="34" marker-end="url(#a3)"/></g>
+          <rect class="box" x="150" y="0" width="164" height="32" rx="7"/>
+          <text class="t mono lamp" x="232" y="20" text-anchor="middle">budget check · every call</text>
+
+          <g color="var(--lamp)"><line class="edge lamp" x1="314" y1="16" x2="392" y2="16" marker-end="url(#a3)"/></g>
+          <rect class="box" x="396" y="0" width="190" height="32" rx="7"/>
+          <text class="t sm" x="401" y="20">out of budget → save + requeue</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="232" y1="180" x2="232" y2="206" marker-end="url(#a3)"/></g>
+          <rect class="box" x="150" y="210" width="164" height="50" rx="7"/>
+          <text class="t" x="232" y="230" text-anchor="middle">Summary written</text>
+          <text class="t sm" x="232" y="246" text-anchor="middle">what was done, what remains</text>
+
+          <g color="var(--err)"><line class="edge gap" x1="314" y1="235" x2="376" y2="235" marker-end="url(#a3)"/></g>
+          <rect class="box gap" x="380" y="210" width="170" height="50" rx="7"/>
+          <text class="t gapt" x="465" y="230" text-anchor="middle">Verification gate</text>
+          <text class="t sm gapt" x="465" y="246" text-anchor="middle">not built</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="550" y1="235" x2="612" y2="235" marker-end="url(#a3)"/></g>
+          <rect class="box" x="616" y="210" width="84" height="50" rx="7"/>
+          <text class="t" x="658" y="233" text-anchor="middle">done</text>
+          <text class="t sm" x="658" y="249" text-anchor="middle">or failed</text>
+
+          <rect class="box gap" x="0" y="288" width="700" height="46" rx="7"/>
+          <text class="t gapt" x="16" y="307">Nine SafaStack tasks hit the 25-step ceiling and every one of them was filed as done.</text>
+          <text class="t sm gapt" x="16" y="324">One was the HLAL migration, which left the schema, the tests and a legal disclaimer behind. That is the cost of the missing box.</text>
+        </svg>
+      </div>
+      <figcaption>The dashed box is the only thing standing between "the agent said it finished" and "it finished".
+        Running the project's own checks there is the single highest-value change left in this diagram.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>Two paths out, joined by a human</h2>
+    <p>This is the part that matters most before a second person starts committing. The live site does not come
+      from GitHub. Nightshift uploads the site folder straight to Vercel, and the repo exists alongside it for the
+      tooling and the nightly ingest. Nothing pulls one into the other.</p>
+
+    <figure>
+      <div class="canvas">
+        <svg viewBox="0 0 700 300" role="img" aria-label="The live site is uploaded from Nightshift's site folder to Vercel, while the GitHub repo and its CI run separately; only a person moves changes between them.">
+          <defs>
+            <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text class="t head" x="0" y="14">NIGHTSHIFT'S PATH</text>
+          <rect class="box" x="0" y="26" width="150" height="50" rx="7"/>
+          <text class="t mono" x="75" y="46" text-anchor="middle">data/sites/&lt;slug&gt;</text>
+          <text class="t sm" x="75" y="62" text-anchor="middle">agents write here</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="150" y1="51" x2="204" y2="51" marker-end="url(#a4)"/></g>
+
+          <rect class="box" x="208" y="26" width="150" height="50" rx="7"/>
+          <text class="t mono" x="283" y="46" text-anchor="middle">publish.ts</text>
+          <text class="t sm" x="283" y="62" text-anchor="middle">reachable files only</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="358" y1="51" x2="412" y2="51" marker-end="url(#a4)"/></g>
+          <text class="t sm" x="385" y="42" text-anchor="middle">upload</text>
+
+          <rect class="box" x="416" y="26" width="130" height="50" rx="7"/>
+          <text class="t" x="481" y="46" text-anchor="middle">Vercel</text>
+          <text class="t sm" x="481" y="62" text-anchor="middle">v13/deployments</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="546" y1="51" x2="600" y2="51" marker-end="url(#a4)"/></g>
+          <rect class="box locked" x="604" y="26" width="96" height="50" rx="7"/>
+          <text class="t" x="652" y="51" text-anchor="middle">Live site</text>
+
+          <text class="t head" x="0" y="152">THE REPO'S PATH</text>
+          <rect class="box soft" x="0" y="164" width="150" height="50" rx="7"/>
+          <text class="t mono" x="75" y="184" text-anchor="middle">github/safastack</text>
+          <text class="t sm" x="75" y="200" text-anchor="middle">you · Ilham · CI</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="150" y1="189" x2="204" y2="189" marker-end="url(#a4)"/></g>
+
+          <rect class="box soft" x="208" y="164" width="150" height="50" rx="7"/>
+          <text class="t mono" x="283" y="184" text-anchor="middle">holdings-daily</text>
+          <text class="t sm" x="283" y="200" text-anchor="middle">tests · ingest · schema</text>
+
+          <g color="var(--ink-3)"><line class="edge" x1="358" y1="189" x2="412" y2="189" marker-end="url(#a4)"/></g>
+
+          <rect class="box soft" x="416" y="164" width="130" height="50" rx="7"/>
+          <text class="t mono" x="481" y="184" text-anchor="middle">data/holdings</text>
+          <text class="t sm" x="481" y="200" text-anchor="middle">committed daily</text>
+
+          <g color="var(--err)"><line class="edge none" x1="546" y1="189" x2="600" y2="189" marker-end="url(#a4)"/></g>
+          <rect class="box gap" x="604" y="164" width="96" height="50" rx="7"/>
+          <text class="t sm gapt" x="652" y="185" text-anchor="middle">reaches the</text>
+          <text class="t sm gapt" x="652" y="201" text-anchor="middle">site only via you</text>
+
+          <g color="var(--err)">
+            <path class="edge none" d="M75 164 L75 120 L75 82" marker-end="url(#a4)"/>
+            <path class="edge none" d="M60 82 L60 120 L60 164" marker-end="url(#a4)"/>
+          </g>
+          <text class="t sm gapt" x="92" y="112">you copy and commit, by hand, in both directions</text>
+
+          <rect class="box gap" x="0" y="248" width="700" height="44" rx="7"/>
+          <text class="t gapt" x="16" y="266">Nightshift runs no git at all: no pull, no push, no shell tool.</text>
+          <text class="t sm gapt" x="16" y="283">Until an agent can open a pull request, you are the merge process between the agents, the CI bot and Ilham.</text>
+        </svg>
+      </div>
+      <figcaption>Two independent paths to the same product. Adding a second committer adds a third writer to a
+        tree that nothing synchronises.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span>The module map</h2>
+    <p>Read off the imports, not from memory. Four modules are choke points — everything of a given kind funnels
+      through them, which is exactly where a new rule belongs.</p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Module</th><th>What it owns</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Entry</td><td class="mod"><b>index.ts</b></td><td>Every HTTP route, both ports, the auth middleware. 767 lines, the biggest file by far.</td></tr>
+          <tr><td>Entry</td><td class="mod">users.ts</td><td>Accounts, scrypt hashes, and the actor context every action is stamped with.</td></tr>
+          <tr><td>Entry</td><td class="mod">scheduler.ts</td><td>The 30-second tick and the 5-minute integration sync.</td></tr>
+          <tr><td>Agents</td><td class="mod"><b>runner.ts</b></td><td>The step loop. Resume, the step ceiling, and where a task's status is decided.</td></tr>
+          <tr><td>Agents</td><td class="mod">tools.ts</td><td>The 19 tools and their argument schemas.</td></tr>
+          <tr><td>Agents</td><td class="mod">night.ts</td><td>Night planning and the morning report, including the no-AI fallback.</td></tr>
+          <tr><td>Agents</td><td class="mod">bootstrap.ts · chat.ts · prompts.ts</td><td>Idea to company, the co-founder chat, and every system prompt.</td></tr>
+          <tr><td>Choke point</td><td class="mod"><b>llm.ts</b></td><td>Every model call. Budget caps, retries, and the usage row that makes spend visible.</td></tr>
+          <tr><td>Choke point</td><td class="mod"><b>actions.ts</b></td><td>Everything outward-facing. What waits for your approval waits here.</td></tr>
+          <tr><td>Choke point</td><td class="mod"><b>publish.ts</b></td><td>What may reach a public URL. Stops a deploy that would ship a key.</td></tr>
+          <tr><td>Support</td><td class="mod">humanizer.ts</td><td>Detects AI tells for free; only calls the model when it finds one.</td></tr>
+          <tr><td>Support</td><td class="mod">health.ts · events.ts · costs.ts</td><td>Integration status, the SSE feed and activity log, OpEx.</td></tr>
+          <tr><td>Data</td><td class="mod">db.ts · settings.ts · sites.ts</td><td>SQLite over <code>node:sqlite</code> in WAL mode, settings with defaults, site folders and versions.</td></tr>
+          <tr><td>Outside</td><td class="mod">integrations/*</td><td>email (Resend/SMTP + IMAP), vercel, stripe, x, meta, search.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>What this map says is missing</h2>
+    <ul class="gaps">
+      <li><span class="tag">No check</span><p>Nothing verifies an agent's work before the task is filed. The project's own tests exist and are never run. Fixing this is what would let the morning report shrink to something worth trusting.</p></li>
+      <li><span class="tag">No git</span><p>Agents cannot commit, push, or open a pull request, so finished work waits on you to type the command. Several open requests are exactly that chore.</p></li>
+      <li><span class="tag">No trimming</span><p>A task's conversation only grows. One task spent 2.59M prompt tokens across 25 calls, and cost inside a run climbs faster than the work does.</p></li>
+      <li><span class="tag">Exposed</span><p>The dashboard port binds every interface. It should bind localhost and reach you over the tailnet instead.</p></li>
+    </ul>
+  </section>
+
+  <footer>
+    Drawn from <code>server/</code> at commit <code>d03de3d</code>. Every figure is read off the imports and the
+    running database, not from the README — where the two disagree, this follows the code.
+  </footer>
+
+</div>

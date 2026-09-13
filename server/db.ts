@@ -186,6 +186,22 @@ CREATE TABLE IF NOT EXISTS usage (
   cost_usd REAL NOT NULL
 );
 
+-- Commits an agent wants to make to a company's site repository. Like emails and posts, these
+-- wait for the owner unless the gate is turned off, because a push is visible to other people.
+CREATE TABLE IF NOT EXISTS commits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending_approval',
+  branch TEXT NOT NULL,
+  message TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  sha TEXT,
+  remote TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  pushed_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS activity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -318,6 +334,14 @@ export interface Task {
   steps: number; cost_usd: number; created_at: string; started_at: string | null; finished_at: string | null;
   /** Saved agent conversation, set only while the task is paused for budget. */
   messages: string | null;
+}
+
+export interface Commit {
+  id: number; company_id: number;
+  status: 'pending_approval' | 'pushing' | 'pushed' | 'failed' | 'rejected';
+  branch: string; message: string; summary: string;
+  sha: string | null; remote: string | null; error: string | null;
+  created_at: string; pushed_at: string | null;
 }
 
 export interface Doc {

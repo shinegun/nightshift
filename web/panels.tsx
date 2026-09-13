@@ -5,6 +5,42 @@ import { Card, Empty, HealthNote, Markdown, Pill, money, timeAgo, toast, useActi
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
 
+// ── Today ──
+
+const KIND_LABEL: Record<string, string> = {
+  budget: 'budget', commit: 'push', email: 'email', post: 'post', ad: 'ads', request: 'you', blocked: 'blocked',
+};
+
+/**
+ * The whole morning, in one card: how many decisions, what they are, and what ran. Everything
+ * else on this page is here for when you go looking, not for you to read every day.
+ */
+export function BriefCard({ d }: PanelProps) {
+  const list = d.decisions ?? [];
+  const unfinished = d.tasks.filter((t) => t.status === 'failed');
+  return (
+    <Card title="Today" className="brief">
+      <p className="brief-head">
+        {list.length ? `${list.length} decision${list.length === 1 ? '' : 's'} for you.` : 'Nothing needs you.'}
+      </p>
+      {list.length > 0 && (
+        <ol className="brief-list">
+          {list.map((item, i) => (
+            <li key={`${item.kind}${item.id ?? i}`}>
+              <span className={`badge type-${item.kind === 'budget' || item.kind === 'blocked' ? 'fix' : 'research'}`}>{KIND_LABEL[item.kind] ?? item.kind}</span>
+              <span>{item.title}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="muted small brief-foot">
+        {d.tasks.length ? `${d.tasks.filter((t) => t.status === 'done').length} tasks done` : 'No tasks yet'}
+        {unfinished.length > 0 && `, ${unfinished.length} unfinished`}.
+      </p>
+    </Card>
+  );
+}
+
 // ── Needs you ──
 
 export function ApprovalsCard({ d, load, setModal }: PanelProps) {
@@ -16,12 +52,31 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const requests = d.requests ?? [];
   const [answering, setAnswering] = useState<number | null>(null);
   const [note, setNote] = useState('');
-  if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length) return null;
+  const commits = (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed');
+  if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length) return null;
   const act = (key: string, path: string, msg: string) => run(key, async () => { await post(path); await load(); }, msg);
 
   return (
     <Card title="Needs you" className="approvals">
       <ul className="list">
+        {commits.map((g) => (
+          <li key={`g${g.id}`} className="list-item request">
+            <div className="grow">
+              <div className="task-title"><span className="badge warn">Push</span><strong>{g.message}</strong></div>
+              <p className="muted small mono">{g.branch}{g.remote ? ` \u2192 ${g.remote}` : ' (no remote)'}</p>
+              {g.summary && <pre className="email-body">{g.summary}</pre>}
+              {g.error && <p className="error small">{g.error}</p>}
+              <div className="row-actions wrap">
+                <button className="btn small primary" disabled={busy !== null}
+                  onClick={() => act(`g${g.id}`, `/commits/${g.id}/approve`, 'Pushed')}>
+                  {g.status === 'failed' ? 'Try the push again' : 'Approve and push'}
+                </button>
+                <button className="btn small ghost" disabled={busy !== null}
+                  onClick={() => act(`gr${g.id}`, `/commits/${g.id}/reject`, 'Discarded')}>Discard</button>
+              </div>
+            </div>
+          </li>
+        ))}
         {requests.map((r) => (
           <li key={`r${r.id}`} className="list-item request">
             <div className="grow">

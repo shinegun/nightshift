@@ -1,4 +1,4 @@
-import { get, now, run, type AdCampaign, type Company, type Email, type Tweet, companyById } from './db.ts';
+import { get, now, run, type AdCampaign, type Commit, type Company, type Email, type Tweet, companyById } from './db.ts';
 import { flag, num, setting } from './settings.ts';
 import { activity, emit } from './events.ts';
 import { sendEmail, senderFor } from './integrations/email.ts';
@@ -6,6 +6,7 @@ import { postTweet, explainXFailure } from './integrations/x.ts';
 import { createPausedCampaign, setCampaignStatus, type MetaIds } from './integrations/meta.ts';
 import { errMsg, localNow } from './util.ts';
 import { clearIssue, reportIssue } from './health.ts';
+import { commitAndPush, diffSummary, status as gitStatus } from './git.ts';
 
 // Every outward-facing action goes through here, so the approval gate and the
 // audit trail (emails / tweets / ad_campaigns tables) live in one place.
@@ -140,4 +141,48 @@ export async function setAdStatus(id: number, status: 'active' | 'paused') {
   run('UPDATE ad_campaigns SET status = ?, error = NULL, updated_at = ? WHERE id = ?', status, now(), id);
   activity(c.id, `> Meta campaign "${ad.name}" ${status === 'active' ? 'is now running' : 'paused'}`);
   emit('ads', c.id);
+}
+
+// ── Git ────────────────────────────────────────────────────────────────────
+
+/**
+ * A commit an agent wants to make. Pushing is visible to everyone with access to the repository,
+ * so it waits behind the same gate as an email, unless the owner has turned that gate off.
+ */
+export async function queueCommit(c: Company, d: { message: string; branch?: string; force?: boolean }) {
+  const st = await gitStatus(c.slug);
+  if (!st.repo) throw new Error(`${c.name} has no git repository yet. Run "git init" in its site folder and add a remote.`);
+  if (!st.changedCount) throw new Error('Nothing to commit: the site folder matches the last commit.');
+
+  const branch = d.branch?.trim() || `agent/${localNow().day}`;
+  const summary = await diffSummary(c.slug);
+  const needsApproval = !d.force && flag('approve_git');
+  const r = run(
+    `INSERT INTO commits (company_id, status, branch, message, summary, remote, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    c.id, needsApproval ? 'pending_approval' : 'pushing', branch, d.message.trim(), summary, st.remote, now(),
+  );
+  emit('commits', c.id);
+  if (needsApproval) {
+    activity(c.id, `> Wants to commit ${st.changedCount} changed file${st.changedCount === 1 ? '' : 's'} to ${branch} — waiting for your approval`);
+    return { id: r.id, status: 'pending_approval' as const, branch, files: st.changedCount };
+  }
+  return pushCommit(r.id);
+}
+
+export async function pushCommit(id: number) {
+  const row = get<Commit>('SELECT * FROM commits WHERE id = ?', id);
+  if (!row) throw new Error('Commit not found');
+  const c = mustCompany(row.company_id);
+  try {
+    const res = await commitAndPush(c.slug, { message: row.message, branch: row.branch, author: `${c.name} agent` });
+    run(`UPDATE commits SET status = 'pushed', sha = ?, remote = ?, error = NULL, pushed_at = ? WHERE id = ?`, res.sha, res.remote, now(), id);
+    activity(c.id, `> Pushed ${res.sha.slice(0, 8)} to ${res.branch}: "${row.message}"`);
+    emit('commits', c.id);
+    return { id, status: 'pushed' as const, sha: res.sha, branch: res.branch };
+  } catch (err) {
+    run(`UPDATE commits SET status = 'failed', error = ? WHERE id = ?`, errMsg(err), id);
+    activity(c.id, `> Push to ${row.branch} failed: ${errMsg(err)}`);
+    emit('commits', c.id);
+    throw err;
+  }
 }

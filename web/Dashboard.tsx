@@ -5,7 +5,7 @@ import { Toggle, go, timeAgo, useAction, useLive } from './lib.tsx';
 import { MOODS, Mascot } from './Mascot.tsx';
 import { Chat } from './Chat.tsx';
 import {
-  AdsCard, ApprovalsCard, BusinessCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard,
+  AdsCard, ApprovalsCard, BriefCard, BusinessCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard,
 } from './panels.tsx';
 import { CompanySettingsModal, ComposeEmailModal, DocModal, EmailModal, NewAdModal, NewTaskModal, TaskModal } from './modals.tsx';
 
@@ -106,6 +106,7 @@ export function Dashboard({ slug }: { slug: string }) {
         </div>
       )}
 
+      <BriefCard {...ctx} />
       <ApprovalsCard {...ctx} />
 
       <div className="grid">

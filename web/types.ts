@@ -70,6 +70,8 @@ export interface DashboardData {
   health: Record<HealthKey, Health>;
   activity: Activity[];
   requests: OwnerRequest[];
+  decisions: Decision[];
+  commits: Commit[];
   tasks: Task[];
   docs: DocMeta[];
   emails: Email[];
@@ -105,3 +107,13 @@ export interface AppState {
 }
 
 export interface SettingsPayload { values: Record<string, string>; secrets: Record<string, Secret>; health: Record<HealthKey, Health> }
+
+export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'blocked';
+/** One thing waiting on the owner. The dashboard and the morning brief read the same list. */
+export interface Decision { kind: DecisionKind; id: number | null; title: string; action: string }
+
+export interface Commit {
+  id: number; status: 'pending_approval' | 'pushing' | 'pushed' | 'failed' | 'rejected';
+  branch: string; message: string; summary: string;
+  sha: string | null; remote: string | null; error: string | null; created_at: string; pushed_at: string | null;
+}

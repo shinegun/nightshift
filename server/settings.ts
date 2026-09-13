@@ -65,6 +65,7 @@ export const DEFAULTS: Record<string, string> = {
   approve_tweets: 'true',
   approve_emails: 'true',
   approve_ads: 'true',
+  approve_git: 'true',
 
   // Humanizer: everything agents write should read like a person wrote it
   humanizer: 'true',

@@ -132,6 +132,7 @@ const SECTIONS: Section[] = [
       { key: 'approve_tweets', label: 'X posts', options: BOOL },
       { key: 'approve_emails', label: 'Emails to other people', options: BOOL },
       { key: 'approve_ads', label: 'Starting ad spend', options: BOOL },
+      { key: 'approve_git', label: 'Pushing to git', options: BOOL },
     ],
   },
 ];
