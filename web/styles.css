@@ -78,53 +78,53 @@ code, .mono { font-family: var(--mono); font-size: var(--fs-sm); }
 .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
 .pane { min-width: 0; }
 .sidebar {
-  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: .35rem;
-  padding: 1rem .75rem; border-right: 1px solid var(--line); background: var(--surface);
+  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: .5rem;
+  padding: 16px; border-right: 1px solid var(--line); background: var(--surface);
 }
-.brand { font: 600 var(--fs-lg) var(--sans); color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: .45rem; padding: .25rem .5rem .6rem; letter-spacing: -0.015em; }
+.brand { font: 600 var(--fs-lg) var(--sans); color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: .45rem; padding: .25rem 12px .75rem; letter-spacing: -0.015em; }
 .brand-moon { color: var(--lamp); font-size: var(--fs-lg); }
 
 /* Names where you are, and is the only control that changes it. */
 .switcher { position: relative; margin-bottom: .5rem; }
 .switch-btn { width: 100%; display: flex; align-items: center; gap: .5rem; background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 10px; padding: .45rem .6rem; cursor: pointer; color: var(--ink); font: 500 var(--fs) var(--sans); text-align: left; }
+  border-radius: 12px; padding: .5rem 12px; cursor: pointer; color: var(--ink); font: 500 var(--fs) var(--sans); text-align: left; }
 .switch-btn:hover { border-color: var(--ink-3); }
 .switch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch-caret { color: var(--ink-3); flex: none; }
 .switch-menu { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); background: var(--surface);
   border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: .3rem; display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
-.switch-menu a { display: block; padding: .4rem .55rem; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: var(--fs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-menu a { display: block; padding: .4rem 12px; border-radius: 10px; color: var(--ink); text-decoration: none; font-size: var(--fs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch-menu a:hover { background: var(--surface-2); }
 .switch-menu a.on { background: var(--surface-2); font-weight: 500; }
 
-.side-nav { display: flex; flex-direction: column; gap: 2px; }
-.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: .6rem; }
+.side-nav { display: flex; flex-direction: column; gap: 8px; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: .6rem; }
 
 /* Active is a filled pill, not a border and not a heavier weight: the selected row should be
    unmistakable without shouting louder than the page it points at. */
-.side-item { position: relative; display: flex; align-items: center; gap: .55rem; height: 32px; padding: 0 .6rem;
-  border-radius: 8px; color: var(--ink-2); text-decoration: none; font-size: var(--fs); white-space: nowrap; }
+.side-item { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px;
+  border-radius: 12px; color: var(--ink-2); text-decoration: none; font-size: var(--fs); white-space: nowrap; }
 .side-item:hover { color: var(--ink); }
 .side-item.active { color: var(--ink); }
-.side-pill { position: absolute; inset: 0; background: var(--surface-2); border-radius: 8px; z-index: 0; }
+.side-pill { position: absolute; inset: 0; background: var(--surface-2); border-radius: 12px; z-index: 0; }
 .side-icon { flex: none; position: relative; z-index: 1; opacity: .75; }
 .side-item.active .side-icon { opacity: 1; }
 .side-label { position: relative; z-index: 1; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .side-badge { position: relative; z-index: 1; font: 500 var(--fs-xs)/1 var(--sans); color: var(--bg); background: var(--lamp); border-radius: 999px; padding: .2rem .38rem; }
 
-.side-spend { padding: .5rem .35rem 0; border-top: 1px solid var(--line); margin-top: .4rem; color: var(--ink-2); }
+.side-spend { padding: .6rem 12px 0; border-top: 1px solid var(--line); margin-top: .4rem; color: var(--ink-2); }
 .side-spend.over, .side-spend.over .spend-btn { color: var(--err); }
-.spend-btn { display: flex; align-items: center; gap: .4rem; width: 100%; background: none; border: 0; padding: .15rem .25rem; cursor: pointer; color: inherit; font-size: var(--fs-sm); }
-.spend-bar { height: 3px; border-radius: 2px; background: var(--surface-2); margin: .35rem .25rem 0; overflow: hidden; }
+.spend-btn { display: flex; align-items: center; gap: .4rem; width: 100%; background: none; border: 0; padding: .15rem 0; cursor: pointer; color: inherit; font-size: var(--fs-sm); }
+.spend-bar { height: 3px; border-radius: 2px; background: var(--surface-2); margin: .4rem 0 0; overflow: hidden; }
 .spend-bar i { display: block; height: 100%; background: var(--lamp); }
 .side-spend.over .spend-bar i { background: var(--err); }
-.spend-detail { padding: .2rem .25rem 0; }
+.spend-detail { padding: .3rem 0 0; }
 .spend-row { display: flex; justify-content: space-between; gap: .75rem; padding: .25rem 0; font-size: var(--fs-sm); color: var(--ink); }
 .spend-row.over { color: var(--err); }
 .spend-detail p { margin: .4rem 0 0; padding-top: .4rem; border-top: 1px solid var(--line); line-height: 1.45; }
 .banner { background: var(--accent-soft); color: var(--ink); padding: .6rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid var(--line); }
 .banner.subtle { background: var(--surface-2); }
-.container { max-width: 1100px; margin: 0; padding: 1.75rem clamp(1rem, 2.5vw, 2rem); }
+.container { max-width: 1100px; margin: 0 auto; padding: 1.75rem clamp(1rem, 2.5vw, 2rem); }
 
 /* ── Buttons & inputs ── */
 .btn { display: inline-flex; align-items: center; gap: .35rem; font: 500 var(--fs-sm) var(--sans); padding: .5rem .9rem; border-radius: 8px;
