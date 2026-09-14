@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, del, patch, post } from './api.ts';
 import type { Activity, DashboardData } from './types.ts';
 import { Toggle, go, timeAgo, useAction, useLive } from './lib.tsx';
+import { AnimatePresence, DUR, EASE, SPRING, Stagger, motion } from './motion.tsx';
 import { MOODS, Mascot } from './Mascot.tsx';
 import { Chat } from './Chat.tsx';
 import {
@@ -24,14 +25,21 @@ function Terminal({ lines }: { lines: Activity[] }) {
   useEffect(() => { ref.current?.scrollTo({ top: ref.current.scrollHeight }); }, [lines.length]);
   return (
     <div className="terminal" ref={ref} aria-label="Activity feed">
+      {/* `initial={false}` so the backlog is just *there* when you open the log, and only lines
+          that land while you are watching slide in. That difference is the whole point: motion
+          here means "this happened just now", not "this exists". */}
+      <AnimatePresence initial={false}>
       {lines.length === 0 ? <div className="line dim">&gt; Waiting for activity…</div> : lines.map((l) => (
-        <div className="line" key={l.id}>
+        <motion.div className="line" key={l.id}
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: EASE }}>
           <span className="ts">{new Date(l.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           {/* No actor means the agents did this on their own, which is most lines and needs no label. */}
           {l.actor && <span className="actor">{l.actor}</span>}
           {l.text}
-        </div>
+        </motion.div>
       ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -84,7 +92,18 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
         <div className="dash-title">
           <Mascot mood={mood} size={96} />
           <div>
-            <div className="bubble"><strong>{MOODS[mood]?.label}</strong> <span>{MOODS[mood]?.line}</span></div>
+            {/* Keyed on mood, so the label is replaced rather than edited in place — the company
+                going from "On shift" to "Stuck" should be something you catch out of the corner
+                of your eye. */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div className="bubble" key={mood}
+                initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={SPRING}>
+                <strong>{MOODS[mood]?.label}</strong> <span>{MOODS[mood]?.line}</span>
+              </motion.div>
+            </AnimatePresence>
             <h1>{c.name}</h1>
             {c.tagline && <p className="tagline">{c.tagline}</p>}
           </div>
@@ -127,38 +146,51 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
           <a key={v.key} role="tab" aria-selected={current === v.key} className={current === v.key ? 'active' : ''}
             href={`#/c/${encodeURIComponent(slug)}${v.key === 'today' ? '' : `/${v.key}`}`}>
             {v.label}
-            {v.key === 'today' && waiting > 0 && <span className="count">{waiting}</span>}
+            {v.key === 'today' && waiting > 0 && (
+              <motion.span className="count" key={waiting} initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={SPRING}>{waiting}</motion.span>
+            )}
+            {/* A shared `layoutId` makes this one element that travels between tabs, instead of
+                five underlines taking turns being visible. */}
+            {current === v.key && <motion.span className="underline" layoutId="view-underline" transition={{ duration: 0.3, ease: EASE }} />}
           </a>
         ))}
       </nav>
 
-      {current === 'today' && (
-        <>
-          <ApprovalsCard {...ctx} />
-          <div className="grid"><ReportCard {...ctx} /></div>
-        </>
-      )}
-      {current === 'work' && (
-        <div className="grid">
-          <TasksCard {...ctx} />
-          <DocsCard {...ctx} />
-        </div>
-      )}
-      {current === 'outbox' && (
-        <div className="grid">
-          <EmailCard {...ctx} />
-          <XCard {...ctx} />
-          <AdsCard {...ctx} />
-          <PaymentsCard {...ctx} />
-        </div>
-      )}
-      {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /></div>}
-      {current === 'numbers' && (
-        <div className="grid">
-          <BusinessCard {...ctx} />
-          <WaitlistCard {...ctx} />
-        </div>
-      )}
+      {/* Switching view swaps a whole screenful of cards at once. Staggering them by 40ms turns
+          that from a flash into something you can follow, and `mode="wait"` keeps the outgoing
+          set from overlapping the incoming one. `Card` carries the variants, so the cards are
+          still the direct children of `.grid` and `.span-2` still spans. */}
+      <AnimatePresence mode="wait" initial={false}>
+        <Stagger key={current} gap={0.04} dur={DUR.swap}>
+          {current === 'today' && (
+            <>
+              <ApprovalsCard {...ctx} />
+              <div className="grid"><ReportCard {...ctx} /></div>
+            </>
+          )}
+          {current === 'work' && (
+            <div className="grid">
+              <TasksCard {...ctx} />
+              <DocsCard {...ctx} />
+            </div>
+          )}
+          {current === 'outbox' && (
+            <div className="grid">
+              <EmailCard {...ctx} />
+              <XCard {...ctx} />
+              <AdsCard {...ctx} />
+              <PaymentsCard {...ctx} />
+            </div>
+          )}
+          {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /></div>}
+          {current === 'numbers' && (
+            <div className="grid">
+              <BusinessCard {...ctx} />
+              <WaitlistCard {...ctx} />
+            </div>
+          )}
+        </Stagger>
+      </AnimatePresence>
       <details className="activity-log">
         <summary>Activity log{d.activity.length ? ` · ${d.activity.length} recent lines` : ''}</summary>
         <Terminal lines={d.activity} />

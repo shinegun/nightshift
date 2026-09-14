@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api, del, patch, post } from './api.ts';
 import type { DashboardData, Doc, Email, Task, TaskLog } from './types.ts';
 import { Markdown, Pill, timeAgo, useAction, useLive, usd } from './lib.tsx';
+import { EASE, SPRING, motion } from './motion.tsx';
 
 export function Modal({ title, onClose, children, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -9,13 +10,17 @@ export function Modal({ title, onClose, children, wide }: { title: ReactNode; on
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, [onClose]);
+  // The backdrop fades and the dialog springs up from slightly small and slightly low, so it
+  // reads as coming from the page rather than being pasted over it.
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true">
+    <motion.div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: EASE }}>
+      <motion.div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={SPRING}>
         <header className="modal-head"><h2>{title}</h2><button className="btn ghost small" onClick={onClose} aria-label="Close">✕</button></header>
         <div className="modal-body">{children}</div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

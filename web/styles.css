@@ -163,8 +163,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .examples { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .8rem; }
 .section-title { font-size: 1.25rem; margin-bottom: .8rem; }
 .company-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-.company-card { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; color: inherit; text-decoration: none; box-shadow: var(--shadow); transition: border-color .12s, transform .12s; }
-.company-card:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.company-card { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; color: inherit; text-decoration: none; box-shadow: var(--shadow); transition: border-color .12s, box-shadow .25s; }
+.company-card:hover { border-color: var(--ink-3); box-shadow: 0 2px 4px rgb(28 27 24 / 7%), 0 12px 28px rgb(28 27 24 / 8%); }
 .company-card-top { display: flex; justify-content: space-between; align-items: start; gap: .5rem; }
 .company-card h3 { margin: 0; font-size: 1.2rem; }
 .mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; margin: .9rem 0 .6rem; }
@@ -201,9 +201,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .modes { display: flex; gap: .7rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
 /* Top-level view switcher. Same visual language as the in-card tabs, one size up. */
 .views { display: flex; gap: .3rem; border-bottom: 1px solid var(--line); margin-bottom: 1.2rem; overflow-x: auto; }
-.views a { font: .95rem var(--sans); text-decoration: none; padding: .5rem .85rem; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: flex; align-items: center; gap: .35rem; }
+.views a { position: relative; font: .95rem var(--sans); text-decoration: none; padding: .5rem .85rem; color: var(--ink-2); margin-bottom: -1px; white-space: nowrap; display: flex; align-items: center; gap: .35rem; }
 .views a:hover { color: var(--ink); }
-.views a.active { color: var(--ink); border-color: var(--lamp); font-weight: 500; }
+.views a.active { color: var(--ink); font-weight: 500; }
+.views .underline { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--lamp); border-radius: 2px; }
 .views .count { font: .72rem/1 var(--mono); color: var(--bg); background: var(--lamp); border-radius: 999px; padding: .2rem .4rem; }
 .toggle { display: flex; align-items: center; gap: .7rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .9rem .6rem .7rem; cursor: pointer; color: var(--ink); font: inherit; text-align: left; }
 .toggle strong { display: block; font-size: .92rem; }
@@ -239,7 +240,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .9rem; }
 .stat { display: flex; flex-direction: column; }
 .stat-label { font: .7rem var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
-.stat-value { font: 600 1.7rem/1.2 var(--serif); }
+.stat-value { font: 600 1.7rem/1.2 var(--serif); display: block; }
+/* A number that just grew stays lit for a beat, so you can tell *which* one moved. */
+.stat-value.rolled { color: var(--lamp); }
+.stat-value { transition: color .5s ease; }
 .stat-sub { font-size: .78rem; color: var(--ink-2); }
 .site-preview { position: relative; height: 180px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; margin-bottom: .6rem; }
 .site-preview iframe { width: 250%; height: 250%; transform: scale(.4); transform-origin: 0 0; border: 0; pointer-events: none; }
@@ -279,10 +283,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .mascot .stroke { fill: none; stroke: var(--moon-ink); stroke-width: 3; stroke-linecap: round; }
 .mascot .hollow { fill: none; stroke: var(--moon-ink); stroke-width: 2.5; }
 .mascot .zzz { font: 700 16px var(--mono); fill: var(--ink-3); }
-.mood-working .face { animation: bob 2.4s ease-in-out infinite; transform-origin: center; }
 .mood-triumphant .halo { fill: color-mix(in srgb, var(--lamp) 25%, transparent); }
-@keyframes bob { 50% { transform: translateY(-2px); } }
-@media (prefers-reduced-motion: reduce) { .mood-working .face, .spinner { animation: none; } }
+.mascot .eyes { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
 /* ── Modals & drawer ── */
 .modal-backdrop { position: fixed; inset: 0; background: rgb(10 10 12 / 45%); display: grid; place-items: center; z-index: 50; padding: 1rem; }

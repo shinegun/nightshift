@@ -2,6 +2,7 @@ import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, ty
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Health } from './types.ts';
+import { AnimatePresence, EASE, motion, rise } from './motion.tsx';
 
 // ── Routing (hash-based: #/, #/c/<slug>, #/settings) ──
 
@@ -49,7 +50,25 @@ export function Toaster() {
     addEventListener('ns-toast', onToast);
     return () => removeEventListener('ns-toast', onToast);
   }, []);
-  return <div className="toasts" role="status">{items.map((i) => <div key={i.id} className={`toast ${i.kind}`}>{i.message}</div>)}</div>;
+  // `layout` is what makes a stack of toasts behave: when the top one expires the ones below it
+  // slide up into the gap instead of teleporting.
+  return (
+    <div className="toasts" role="status">
+      <AnimatePresence initial={false}>
+        {items.map((i) => (
+          <motion.div
+            key={i.id} layout className={`toast ${i.kind}`}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
+            transition={{ duration: 0.28, ease: EASE }}
+          >
+            {i.message}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 /** Run an async action with a busy flag and error toasts. */
@@ -103,12 +122,18 @@ export const money = (cents: number, currency: string) => `${(cents / 100).toFix
 
 // ── Small UI pieces ──
 
+/**
+ * A card is a `motion.section` rather than a plain one so it can take its entrance from whatever
+ * `Stagger` it happens to sit in — which lets the views stagger their cards without a wrapper div
+ * in between, and a wrapper div in between would become the grid cell and break `.span-2`.
+ * With no animating parent above it, the variants go unused and this renders exactly as before.
+ */
 export function Card({ title, action, children, className = '' }: { title: string; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`card ${className}`}>
+    <motion.section className={`card ${className}`} variants={rise}>
       <header className="card-head"><h2>{title}</h2>{action}</header>
       {children}
-    </section>
+    </motion.section>
   );
 }
 

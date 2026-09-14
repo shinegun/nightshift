@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, del, patch, post } from './api.ts';
 import { Markdown, timeAgo, toast, useLive } from './lib.tsx';
+import { AnimatePresence, EASE, motion } from './motion.tsx';
 
 interface Message { id: number; role: 'user' | 'assistant'; content: string; image: string | null; created_at: string }
 interface Thread { id: number; title: string; created_at: string; updated_at: string; messages: number; last: string | null }
@@ -210,8 +211,11 @@ export function Chat({ slug, name, onClose }: { slug: string; name: string; onCl
 
   const current = threads.find((t) => t.id === active);
 
+  // The drawer slides in from the edge it lives on; anything else would misrepresent where it
+  // came from. No exit animation — it is unmounted by the parent the moment you close it.
   return (
-    <aside className="drawer" aria-label="Co-founder chat">
+    <motion.aside className="drawer" aria-label="Co-founder chat"
+      initial={{ x: 32, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.3, ease: EASE }}>
       <header className="drawer-head">
         <div className="grow">
           <div className="eyebrow">Co-founder</div>
@@ -252,12 +256,19 @@ export function Chat({ slug, name, onClose }: { slug: string; name: string; onCl
                 {STARTERS.map((s) => <button key={s} className="chip" onClick={() => void send(s)}>{s}</button>)}
               </div>
             )}
+            {/* Messages rise in from the side they belong to, so a reply arriving reads the same
+                way it does in every chat app you already use. */}
+            <AnimatePresence initial={false}>
             {messages.map((m) => (
-              <div key={m.id} className={`msg ${m.role}`}>
+              <motion.div key={m.id} layout className={`msg ${m.role}`}
+                initial={{ opacity: 0, y: 10, x: m.role === 'user' ? 12 : -12 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                transition={{ duration: 0.28, ease: EASE }}>
                 {m.image && m.id > 0 && <img className="msg-image" src={`/api/messages/${m.id}/image`} alt="Attached" loading="lazy" />}
                 {m.role === 'assistant' ? <Markdown text={m.content} /> : m.content}
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
             {sending && <div className="msg assistant typing"><span /><span /><span /></div>}
             <div ref={end} />
           </div>
@@ -274,6 +285,6 @@ export function Chat({ slug, name, onClose }: { slug: string; name: string; onCl
           />
         </>
       )}
-    </aside>
+    </motion.aside>
   );
 }

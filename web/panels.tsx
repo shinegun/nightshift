@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
 import type { AdCampaign, DashboardData, DocMeta, GitState, Task, TaskStatus } from './types.ts';
 import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
+import { AnimatePresence, EASE, Rolling, Row, SPRING, motion } from './motion.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
 
@@ -53,13 +54,13 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
 
   const rows: ReactNode[] = [
     ...budget.map((b) => (
-      <li key={`b${b.title}`} className="list-item">
+      <Row key={`b${b.title}`} className="list-item">
         <div className="grow"><span className="badge warn">Budget</span> {b.title}</div>
         <div className="row-actions"><a className="btn small primary" href="#/settings">Open Settings</a></div>
-      </li>
+      </Row>
     )),
     ...commits.map((g) => (
-      <li key={`g${g.id}`} className="list-item request">
+      <Row key={`g${g.id}`} className="list-item request">
         <div className="grow">
           <div className="task-title"><span className="badge warn">Push</span><strong>{g.message}</strong></div>
           <p className="muted small mono">{g.branch}{g.remote ? ` → ${g.remote}` : ' (no remote)'}</p>
@@ -74,10 +75,10 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
               onClick={() => act(`gr${g.id}`, `/commits/${g.id}/reject`, 'Discarded')}>Discard</button>
           </div>
         </div>
-      </li>
+      </Row>
     )),
     ...requests.map((r) => (
-      <li key={`r${r.id}`} className="list-item request">
+      <Row key={`r${r.id}`} className="list-item request">
         <div className="grow">
           <div className="task-title"><span className="badge warn">Your turn</span><strong>{r.title}</strong></div>
           {r.why && <p className="muted small">{r.why}</p>}
@@ -109,47 +110,47 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
             </div>
           )}
         </div>
-      </li>
+      </Row>
     )),
     ...tweets.map((t) => (
-      <li key={`t${t.id}`} className="list-item">
+      <Row key={`t${t.id}`} className="list-item">
         <div className="grow"><span className="badge">X post</span> {t.text}</div>
         <div className="row-actions">
           <button className="btn small primary" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/approve`, 'Posted to X')}>Post</button>
           <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`t${t.id}`, `/tweets/${t.id}/reject`, 'Discarded')}>Discard</button>
         </div>
-      </li>
+      </Row>
     )),
     ...emails.map((e) => (
-      <li key={`e${e.id}`} className="list-item clickable" onClick={() => setModal({ kind: 'email', id: e.id })}>
+      <Row key={`e${e.id}`} className="list-item clickable" onClick={() => setModal({ kind: 'email', id: e.id })}>
         <div className="grow"><span className="badge">Email</span> To {e.to_addr}: <strong>{e.subject}</strong></div>
         <div className="row-actions" onClick={(ev) => ev.stopPropagation()}>
           <button className="btn small primary" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/approve`, 'Email sent')}>Send</button>
           <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`e${e.id}`, `/emails/${e.id}/reject`, 'Discarded')}>Discard</button>
         </div>
-      </li>
+      </Row>
     )),
     ...ads.map((a) => (
-      <li key={`a${a.id}`} className="list-item">
+      <Row key={`a${a.id}`} className="list-item">
         <div className="grow"><span className="badge">Meta ad</span> {a.name} · {(a.daily_budget_cents / 100).toFixed(2)}/day (paused)</div>
         <div className="row-actions">
           <button className="btn small primary" disabled={busy !== null} onClick={() => act(`a${a.id}`, `/ads/${a.id}/activate`, 'Campaign is live')}>Start spending</button>
         </div>
-      </li>
+      </Row>
     )),
   ];
   if (failed > 0) {
     rows.push(
-      <li key="failed" className="list-item">
+      <Row key="failed" className="list-item">
         <div className="grow"><span className="badge warn">Tasks</span> {failed} task{failed > 1 ? 's' : ''} failed — open the Failed tab to retry.</div>
-      </li>,
+      </Row>,
     );
   }
   if (blocked) {
     rows.push(
-      <li key="blocked" className="list-item">
+      <Row key="blocked" className="list-item">
         <div className="grow"><span className="badge warn">Tasks</span> {blocked.title}</div>
-      </li>,
+      </Row>,
     );
   }
 
@@ -158,7 +159,10 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
 
   return (
     <Card title={rows.length > NEEDS_YOU_CAP ? `Needs you · ${rows.length}` : 'Needs you'} className="approvals">
-      <ul className="list">{visible}</ul>
+      {/* The payoff for this card being the only actionable list in the app: approve something
+          and you watch it leave, and the rows under it close the gap. `layout` on each Row is
+          what animates that gap closing rather than snapping it shut. */}
+      <ul className="list"><AnimatePresence initial={false}>{visible}</AnimatePresence></ul>
       {hidden > 0 && (
         <button className="btn small ghost more-link" onClick={() => setShowAll(!showAll)}>
           {showAll ? 'Show fewer' : `Show ${hidden} more`}
@@ -174,11 +178,14 @@ export function BusinessCard({ d }: PanelProps) {
   const m = d.metrics;
   return (
     <Card title="Business">
+      {/* These are the numbers the agents move overnight. Rolling them on change is the one
+          animation here that carries information you would otherwise miss entirely: a visitor
+          count that ticks 128 → 134 while the page is open is the whole product working. */}
       <div className="stats">
-        <div className="stat"><span className="stat-label">Visitors · 7d</span><span className="stat-value">{m.visitors_7d}</span><span className="stat-sub">{m.visitors_total} all time · {m.pageviews_7d} views</span></div>
-        <div className="stat"><span className="stat-label">Waitlist</span><span className="stat-value">{m.waitlist}</span></div>
+        <div className="stat"><span className="stat-label">Visitors · 7d</span><Rolling className="stat-value" value={m.visitors_7d} /><span className="stat-sub">{m.visitors_total} all time · {m.pageviews_7d} views</span></div>
+        <div className="stat"><span className="stat-label">Waitlist</span><Rolling className="stat-value" value={m.waitlist} /></div>
         <div className="stat"><span className="stat-label">Revenue</span><span className="stat-value">{d.revenueTotal[0] ?? '0.00'}</span>{d.revenueTotal.slice(1).map((r) => <span key={r} className="stat-sub">{r}</span>)}</div>
-        <div className="stat"><span className="stat-label">Tasks done</span><span className="stat-value">{m.tasks_done}</span><span className="stat-sub">{m.tasks_open} open</span></div>
+        <div className="stat"><span className="stat-label">Tasks done</span><Rolling className="stat-value" value={m.tasks_done} /><span className="stat-sub">{m.tasks_open} open</span></div>
       </div>
       <HealthNote h={d.health.stripe} label="Revenue tracking" />
     </Card>
