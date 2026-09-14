@@ -26,6 +26,8 @@
   /* Four sizes, all integers, matching resend.com. The old scale had sixteen, several of them
      fractional (10.836px, 12.6px, 12.75px) because `.mono` was sized in `em` and multiplied
      against whatever it was nested inside. Sizes are absolute here so they cannot compound. */
+  /* xs is captions only — eyebrows, badges, pills, counts. Secondary prose is sm. Putting
+     ordinary text at 12px is what made the old dashboard feel cramped rather than dense. */
   --fs-xs: 12px;
   --fs-sm: 13px;
   --fs: 14px;
@@ -50,11 +52,11 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 h1, h2, h3 { font-family: var(--sans); font-weight: 500; letter-spacing: -0.015em; line-height: 1.25; margin: 0; }
 h1 { font-size: var(--fs-title); }
 h3 { font-size: var(--fs-lg); margin: 1.1rem 0 .4rem; }
-code, .mono { font-family: var(--mono); font-size: var(--fs-xs); }
+code, .mono { font-family: var(--mono); font-size: var(--fs-sm); }
 .muted { color: var(--ink-2); }
-.small { font-size: var(--fs-xs); }
-.hint { color: var(--ink-2); font-size: var(--fs-xs); margin: .5rem 0; }
-.health { font-size: var(--fs-xs); line-height: 1.45; margin: .4rem 0; padding: .45rem .65rem; border-radius: 6px; overflow-wrap: anywhere; color: var(--ink); }
+.small { font-size: var(--fs-sm); }
+.hint { color: var(--ink-2); font-size: var(--fs-sm); margin: .5rem 0; }
+.health { font-size: var(--fs-sm); line-height: 1.45; margin: .4rem 0; padding: .45rem .65rem; border-radius: 6px; overflow-wrap: anywhere; color: var(--ink); }
 .health.ready { color: var(--ok); padding: 0; }
 .health.off { background: color-mix(in srgb, var(--warn) 11%, transparent); border-left: 3px solid var(--warn); }
 .health.error { background: color-mix(in srgb, var(--err) 11%, transparent); border-left: 3px solid var(--err); }
@@ -112,12 +114,12 @@ code, .mono { font-family: var(--mono); font-size: var(--fs-xs); }
 
 .side-spend { padding: .5rem .35rem 0; border-top: 1px solid var(--line); margin-top: .4rem; color: var(--ink-2); }
 .side-spend.over, .side-spend.over .spend-btn { color: var(--err); }
-.spend-btn { display: flex; align-items: center; gap: .4rem; width: 100%; background: none; border: 0; padding: .15rem .25rem; cursor: pointer; color: inherit; font-size: var(--fs-xs); }
+.spend-btn { display: flex; align-items: center; gap: .4rem; width: 100%; background: none; border: 0; padding: .15rem .25rem; cursor: pointer; color: inherit; font-size: var(--fs-sm); }
 .spend-bar { height: 3px; border-radius: 2px; background: var(--surface-2); margin: .35rem .25rem 0; overflow: hidden; }
 .spend-bar i { display: block; height: 100%; background: var(--lamp); }
 .side-spend.over .spend-bar i { background: var(--err); }
 .spend-detail { padding: .2rem .25rem 0; }
-.spend-row { display: flex; justify-content: space-between; gap: .75rem; padding: .25rem 0; font-size: var(--fs-xs); color: var(--ink); }
+.spend-row { display: flex; justify-content: space-between; gap: .75rem; padding: .25rem 0; font-size: var(--fs-sm); color: var(--ink); }
 .spend-row.over { color: var(--err); }
 .spend-detail p { margin: .4rem 0 0; padding-top: .4rem; border-top: 1px solid var(--line); line-height: 1.45; }
 .banner { background: var(--accent-soft); color: var(--ink); padding: .6rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid var(--line); }
@@ -223,7 +225,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .activity-log { margin: 1.4rem 0 .4rem; }
 .activity-log > summary { cursor: pointer; font: 600 var(--fs-xs)/1 var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); padding: .4rem 0; }
 .activity-log[open] > summary { margin-bottom: .5rem; }
-.terminal { background: var(--terminal); color: var(--terminal-ink); font: var(--fs-xs)/1.55 var(--mono); border-radius: var(--radius); padding: .7rem .9rem; height: 12rem; overflow-y: auto; }
+.terminal { background: var(--terminal); color: var(--terminal-ink); font: var(--fs-sm)/1.55 var(--mono); border-radius: var(--radius); padding: .7rem .9rem; height: 12rem; overflow-y: auto; }
 .terminal .line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .terminal .line:last-child { color: #fff; }
 .terminal .ts { color: #6d6b62; margin-right: .7rem; }
