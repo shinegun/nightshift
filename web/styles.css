@@ -215,6 +215,20 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .toggle.on .knob::after { transform: translateX(14px); background: var(--lamp); }
 .approvals { margin-bottom: 1rem; border-color: color-mix(in srgb, var(--lamp) 50%, var(--line)); }
 .more-link { margin-top: .6rem; }
+/* ── Documents, grouped ─────────────────────────────────────────────────────── */
+.doc-filter { font: .82rem var(--sans); padding: .25rem .5rem; max-width: 9rem; }
+.doc-groups { display: flex; flex-direction: column; }
+.doc-group + .doc-group { border-top: 1px solid var(--line); }
+.doc-group > summary { cursor: pointer; display: flex; align-items: baseline; gap: .5rem; padding: .55rem 0; list-style: none; }
+.doc-group > summary::-webkit-details-marker { display: none; }
+.doc-group > summary::before { content: '▸'; color: var(--ink-3); font-size: .7rem; transition: transform .12s; }
+.doc-group[open] > summary::before { content: '▾'; }
+.doc-group-label { font: 600 .74rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--ink); }
+.doc-group > summary .count { font: .72rem var(--mono); color: var(--ink-3); }
+.doc-group-blurb { color: var(--ink-3); font-size: .78rem; margin-left: auto; text-align: right; }
+.doc-group > .docs { margin-bottom: .4rem; }
+@media (max-width: 560px) { .doc-group-blurb { display: none; } }
+
 .request-steps > summary { cursor: pointer; font-size: .82rem; color: var(--ink-2); padding: .3rem 0; }
 .request-steps[open] > summary { margin-bottom: .2rem; }
 .list-item.request { align-items: flex-start; padding: .8rem .2rem; }

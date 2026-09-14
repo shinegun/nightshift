@@ -7,6 +7,16 @@ import { createPausedCampaign, setCampaignStatus, type MetaIds } from './integra
 import { errMsg, localNow } from './util.ts';
 import { clearIssue, reportIssue } from './health.ts';
 import { commitAndPush, diffSummary, status as gitStatus } from './git.ts';
+import { reportHtml } from './report-html.ts';
+
+/**
+ * Which day's report this body is, so the email is dated by the report rather than by whenever it
+ * happened to be delivered. Matched on content because that is exactly what was queued; a resend
+ * weeks later still carries its original date.
+ */
+const reportDay = (companyId: number, body: string) =>
+  get<{ day: string }>('SELECT day FROM reports WHERE company_id = ? AND content = ? ORDER BY day DESC LIMIT 1', companyId, body)?.day
+  ?? localNow().day;
 
 // Every outward-facing action goes through here, so the approval gate and the
 // audit trail (emails / tweets / ad_campaigns tables) live in one place.
@@ -43,7 +53,10 @@ export async function deliverEmail(id: number) {
   if (!e) throw new Error('Email not found');
   const c = mustCompany(e.company_id);
   try {
-    const { messageId } = await sendEmail({ from: e.from_addr || senderFor(c), to: e.to_addr, subject: e.subject, text: e.body, inReplyTo: e.in_reply_to });
+    // The report is the one mail worth laying out: it arrives every morning and is meant to be
+    // kept. Rendered here rather than stored, so the row keeps the plain text the dashboard reads.
+    const html = e.kind === 'report' ? reportHtml(c, e.body, reportDay(c.id, e.body)) : undefined;
+    const { messageId } = await sendEmail({ from: e.from_addr || senderFor(c), to: e.to_addr, subject: e.subject, text: e.body, html, inReplyTo: e.in_reply_to });
     run(`UPDATE emails SET status = 'sent', message_id = ?, error = NULL WHERE id = ?`, messageId, id);
     clearIssue('email', c);
     activity(c.id, `> Sent email to ${e.to_addr}: "${e.subject}"`);

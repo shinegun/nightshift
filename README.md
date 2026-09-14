@@ -36,7 +36,7 @@ Requirements: Node 22.13+ (it uses the built-in `node:sqlite`).
 | **Tasks** | Each task runs a tool-using agent loop (engineering, research, marketing, outreach, support, ops). Every step is logged, and you can open any task to see what it did and why. |
 | **Auto Mode** | Works the queue during the day, one task at a time, with a gap between tasks. |
 | **Night Task** | During your night window, the CEO agent plans the next tasks and the team works through them. |
-| **Morning report** | Summary of the last 24 hours, shown on the dashboard and emailed to you. |
+| **Morning report** | Summary of the last 24 hours, shown on the dashboard and emailed to you as a laid-out HTML message worth keeping (plain text stays the fallback). Written from the database, not by a model. Preview one without sending: `npx tsx scripts/preview-report.mts <slug> --html out.html`. |
 | **Co-founder chat** | Talk strategy. It pushes back and turns requests into tasks. |
 | **Humanizer** | Every agent follows a plain-writing guide. A built-in checker catches AI tells (em dashes, "delve", "not just X but Y"…) and makes the agent rewrite pages, emails, posts and ads before they're saved or sent; chat replies, reports and summaries get one rewrite pass when needed. Your own writing is never touched. Settings → Writing style. |
 | **Website** | Static HTML/CSS/JS per company, previewed at `/s/<slug>/`, with version history and one-click restore, deployable to Vercel. A deploy publishes only what the pages actually link (see *What gets published* below). Waitlist forms and visitor counts work automatically. |

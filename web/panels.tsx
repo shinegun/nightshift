@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
-import type { AdCampaign, DashboardData, GitState, Task, TaskStatus } from './types.ts';
+import type { AdCampaign, DashboardData, DocMeta, GitState, Task, TaskStatus } from './types.ts';
 import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
@@ -341,19 +341,63 @@ export function TasksCard({ d, base, load, setModal }: PanelProps) {
 
 // ── Documents ──
 
+/**
+ * The agents write a lot of documents — two dozen within days — and a flat list of them is a
+ * wall. Grouped by what the document is for, with the three that define the company open and the
+ * accumulating piles (research, reports, notes) folded until you want them.
+ */
+const DOC_GROUPS: { kind: string; label: string; blurb: string; open: boolean }[] = [
+  { kind: 'mission', label: 'Mission', blurb: 'what the company is', open: true },
+  { kind: 'roadmap', label: 'Roadmap', blurb: 'what it is building toward', open: true },
+  { kind: 'plan', label: 'Plans', blurb: 'decisions waiting to be made real', open: true },
+  { kind: 'research', label: 'Research', blurb: 'what the agents went and found out', open: false },
+  { kind: 'report', label: 'Reports', blurb: 'checks and verification passes', open: false },
+  { kind: 'note', label: 'Notes', blurb: 'logs and running records', open: false },
+];
+
 export function DocsCard({ d, setModal }: PanelProps) {
+  const [q, setQ] = useState('');
+  const query = q.trim().toLowerCase();
+  const match = (doc: DocMeta) => !query || doc.title.toLowerCase().includes(query) || doc.kind.toLowerCase().includes(query);
+  const shown = d.docs.filter(match);
+
+  // Anything the agents invent a new kind for still has to land somewhere visible.
+  const known = new Set(DOC_GROUPS.map((g) => g.kind));
+  const groups = [
+    ...DOC_GROUPS.map((g) => ({ ...g, docs: shown.filter((x) => x.kind === g.kind) })),
+    { kind: 'other', label: 'Other', blurb: '', open: false, docs: shown.filter((x) => !known.has(x.kind)) },
+  ].filter((g) => g.docs.length > 0);
+
+  const row = (doc: DocMeta) => (
+    <li key={doc.id} className="list-item clickable" onClick={() => setModal({ kind: 'doc', id: doc.id })}>
+      <span className="doc-icon" aria-hidden>▤</span>
+      <div className="grow"><strong>{doc.title}</strong><div className="muted small">updated {timeAgo(doc.updated_at)}</div></div>
+    </li>
+  );
+
   return (
-    <Card title="Documents">
-      {d.docs.length === 0 ? <Empty>Mission, research and roadmap appear here once setup runs.</Empty> : (
-        <ul className="list docs">
-          {d.docs.map((doc) => (
-            <li key={doc.id} className="list-item clickable" onClick={() => setModal({ kind: 'doc', id: doc.id })}>
-              <span className="doc-icon" aria-hidden>▤</span>
-              <div className="grow"><strong>{doc.title}</strong><div className="muted small">{doc.kind} · updated {timeAgo(doc.updated_at)}</div></div>
-            </li>
-          ))}
-        </ul>
-      )}
+    <Card
+      title={d.docs.length ? `Documents · ${d.docs.length}` : 'Documents'}
+      action={d.docs.length > 6
+        ? <input className="doc-filter" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter…" aria-label="Filter documents" />
+        : undefined}
+    >
+      {d.docs.length === 0 ? <Empty>Mission, research and roadmap appear here once setup runs.</Empty>
+        : groups.length === 0 ? <Empty>Nothing matches “{q}”.</Empty> : (
+          <div className="doc-groups">
+            {groups.map((g) => (
+              // A search should show you what it found, so a filter forces every group open.
+              <details key={g.kind} className="doc-group" open={query ? true : g.open}>
+                <summary>
+                  <span className="doc-group-label">{g.label}</span>
+                  <span className="count">{g.docs.length}</span>
+                  {g.blurb && <span className="doc-group-blurb">{g.blurb}</span>}
+                </summary>
+                <ul className="list docs">{g.docs.map(row)}</ul>
+              </details>
+            ))}
+          </div>
+        )}
     </Card>
   );
 }

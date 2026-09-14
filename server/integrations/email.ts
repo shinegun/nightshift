@@ -24,7 +24,8 @@ export function senderFor(c: Company) {
   return addr ? `${c.name} <${addr}>` : '';
 }
 
-export interface OutgoingEmail { from: string; to: string; subject: string; text: string; inReplyTo?: string | null }
+/** `html`, when present, is sent as the rich half of a multipart message; `text` stays the fallback. */
+export interface OutgoingEmail { from: string; to: string; subject: string; text: string; html?: string; inReplyTo?: string | null }
 
 export async function sendEmail(mail: OutgoingEmail): Promise<{ messageId: string }> {
   const provider = setting('email_provider');
@@ -37,6 +38,7 @@ export async function sendEmail(mail: OutgoingEmail): Promise<{ messageId: strin
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         from: mail.from, to: [mail.to], subject: mail.subject, text: mail.text,
+        ...(mail.html ? { html: mail.html } : {}),
         ...(mail.inReplyTo ? { headers: { 'In-Reply-To': mail.inReplyTo, References: mail.inReplyTo } } : {}),
       }),
       signal: AbortSignal.timeout(30_000),
@@ -53,6 +55,7 @@ export async function sendEmail(mail: OutgoingEmail): Promise<{ messageId: strin
     });
     const info = await transport.sendMail({
       from: mail.from, to: mail.to, subject: mail.subject, text: mail.text,
+      ...(mail.html ? { html: mail.html } : {}),
       ...(mail.inReplyTo ? { inReplyTo: mail.inReplyTo, references: mail.inReplyTo } : {}),
     });
     return { messageId: info.messageId };

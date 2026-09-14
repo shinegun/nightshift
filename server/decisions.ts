@@ -35,6 +35,18 @@ const ORDER: DecisionKind[] = ['budget', 'commit', 'request', 'email', 'post', '
 const count = (sql: string, id: number) => Number(get<{ n: number }>(sql, id)?.n ?? 0);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * A decision title is one line — the type says so, and both readers depend on it: the text report
+ * is a numbered list split on newlines, and the HTML email parses that list back. A commit message
+ * is the one input that regularly arrives as a whole changelog, so take its subject the way git
+ * does (first line) and keep it short enough to read in an inbox.
+ */
+const TITLE_MAX = 120;
+export function oneLine(text: string, max = TITLE_MAX): string {
+  const first = text.split('\n')[0].replace(/\s+/g, ' ').trim();
+  return first.length > max ? `${first.slice(0, max - 1).trimEnd()}…` : first;
+}
+
 export function decisions(c: Company): Decision[] {
   const out: Decision[] = [];
 
@@ -54,13 +66,13 @@ export function decisions(c: Company): Decision[] {
     `SELECT id, branch, message FROM commits WHERE company_id = ? AND status = 'pending_approval' ORDER BY id`, c.id,
   );
   for (const g of commits) {
-    out.push({ kind: 'commit', id: g.id, title: `Push "${g.message}" to ${g.branch}`, action: 'Website → Commits' });
+    out.push({ kind: 'commit', id: g.id, title: `Push "${oneLine(g.message)}" to ${g.branch}`, action: 'Website → Commits' });
   }
 
   for (const r of all<{ id: number; title: string }>(
     `SELECT id, title FROM requests WHERE company_id = ? AND status = 'open' ORDER BY id`, c.id,
   )) {
-    out.push({ kind: 'request', id: r.id, title: r.title, action: 'Needs you' });
+    out.push({ kind: 'request', id: r.id, title: oneLine(r.title), action: 'Needs you' });
   }
 
   // Approvals are grouped: fifteen queued emails are one decision about one batch, not fifteen
@@ -113,7 +125,7 @@ export function briefText(c: Company, d: Decision[], night: NightSummary, opts: 
   lines.push(d.length ? `${plural(d.length, 'decision')} for you.` : 'Nothing needs you.');
   lines.push('');
 
-  d.slice(0, limit).forEach((item, i) => lines.push(`${i + 1}. ${item.title}`));
+  d.slice(0, limit).forEach((item, i) => lines.push(`${i + 1}. ${oneLine(item.title)}`));
   if (d.length > limit) lines.push(`   ...and ${d.length - limit} more in the dashboard.`);
   if (d.length) lines.push('');
 
@@ -122,7 +134,7 @@ export function briefText(c: Company, d: Decision[], night: NightSummary, opts: 
     : 'No tasks ran.';
   lines.push(ran);
   // Unfinished work is the one piece of history that is really a decision in disguise.
-  for (const t of night.unfinishedTitles.slice(0, 3)) lines.push(`   unfinished: ${t}`);
+  for (const t of night.unfinishedTitles.slice(0, 3)) lines.push(`   unfinished: ${oneLine(t)}`);
   if (night.unfinishedTitles.length > 3) lines.push(`   ...and ${night.unfinishedTitles.length - 3} more.`);
 
   // One money line, because the budget is tight enough that it changes what you decide above.
