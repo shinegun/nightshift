@@ -350,7 +350,18 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .composer textarea { width: 100%; border: 0; background: none; resize: none; color: var(--ink); font: .92rem/1.5 var(--sans); padding: .3rem .2rem; max-height: 200px; overflow-y: auto; }
 .composer textarea:focus { outline: none; }
 .composer textarea:disabled { opacity: .6; }
-.composer-actions { display: flex; align-items: center; gap: .5rem; padding-top: .2rem; }
+.composer.over { border-color: var(--accent); background: var(--accent-soft); }
+.composer-actions { display: flex; align-items: center; gap: .35rem; padding-top: .2rem; }
+.icon-btn { flex: none; width: 30px; height: 30px; border-radius: 999px; border: 0; background: none; color: var(--ink-3); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.icon-btn:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
+.icon-btn:disabled { opacity: .4; cursor: default; }
+.toggle-pill { display: flex; align-items: center; gap: .3rem; height: 30px; padding: 0 .6rem; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--ink-3); font: .78rem var(--sans); cursor: pointer; }
+.toggle-pill:hover:not(:disabled) { color: var(--ink); }
+.toggle-pill.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.toggle-pill:disabled { opacity: .4; cursor: default; }
+.attach { display: flex; align-items: center; gap: .5rem; padding: .35rem; margin-bottom: .35rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: .8rem; }
+.attach img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; flex: none; }
+.msg-image { display: block; max-width: 100%; border-radius: 8px; margin-bottom: .4rem; }
 .composer-hint { flex: 1; min-width: 0; font-size: .72rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .round-btn { flex: none; width: 32px; height: 32px; border-radius: 999px; border: 0; cursor: pointer; background: var(--ink); color: var(--bg); font-size: 1rem; line-height: 1; display: flex; align-items: center; justify-content: center; transition: background .15s, opacity .15s; }
 .round-btn:disabled { opacity: .35; cursor: default; }

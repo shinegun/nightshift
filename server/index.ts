@@ -11,7 +11,7 @@ import { actorStore, adoptLegacyPassword, currentActor, listUsers, removeUser, t
 import { streamSSE } from 'hono/streaming';
 import {
   DATA_DIR, all, companyBySlug, db, get, now, run,
-  type AdCampaign, type Commit, type Company, type Doc, type Email, type Expense, type Request, type Task, type Thread, type Tweet,
+  type AdCampaign, type Commit, type Company, type Doc, type Email, type Expense, type Message, type Request, type Task, type Thread, type Tweet,
 } from './db.ts';
 import { COMPANY_KEYS, SECRET_KEYS, companyConfig, flag, num, publicSettings, setting, updateSettings } from './settings.ts';
 import { activity, emit, subscribe } from './events.ts';
@@ -34,6 +34,7 @@ import { companyMetrics, insertTask, integrationStatus, saveDocument } from './a
 import { isNight, startScheduler } from './scheduler.ts';
 import { clearIssue, clearIssuesForSettings, dismissIssue, integrationHealth, openIssues, reportIssue, type IntegrationKey } from './health.ts';
 import { decisions } from './decisions.ts';
+import { deleteImages, readImage, saveImage } from './uploads.ts';
 import { status as gitStatus } from './git.ts';
 import { errMsg, localNow } from './util.ts';
 
@@ -503,6 +504,8 @@ api.patch('/threads/:id', async (c) => {
 api.delete('/threads/:id', (c) => {
   const t = threadById(c);
   // The messages go with it: ON DELETE CASCADE is declared, but it only fires with foreign keys on.
+  // The uploads go too, or the folder keeps growing with pictures nothing can reach.
+  deleteImages(t.company_id, all<{ image: string }>('SELECT image FROM messages WHERE thread_id = ? AND image IS NOT NULL', t.id).map((r) => r.image));
   run('DELETE FROM messages WHERE thread_id = ?', t.id);
   run('DELETE FROM threads WHERE id = ?', t.id);
   emit('messages', t.company_id);
@@ -520,11 +523,33 @@ api.post('/companies/:slug/messages', async (c) => {
   const co = mustCompany(c);
   const b = await body(c);
   const text = String(b.text ?? '').trim();
-  if (!text) throw bad('Message is empty');
-  const threadId = Number(b.thread_id ?? 0) || undefined;
-  // The browser's own signal: pressing Stop closes the connection, which ends the model call
-  // rather than leaving it to finish and bill.
-  return c.json(await chatWithCofounder(co, text.slice(0, 8000), threadId, c.req.raw.signal));
+  const raw = typeof b.image === 'string' ? b.image : '';
+  if (!text && !raw) throw bad('Message is empty');
+  let image: string | undefined;
+  if (raw) {
+    try { image = saveImage(co.id, raw).file; } catch (e) { throw bad(errMsg(e)); }
+  }
+  return c.json(await chatWithCofounder(co, text.slice(0, 8000) || 'Have a look at this.', {
+    threadId: Number(b.thread_id ?? 0) || undefined,
+    // The browser's own signal: pressing Stop closes the connection, which ends the model call
+    // rather than leaving it to finish and bill.
+    signal: c.req.raw.signal,
+    think: b.think === true,
+    image,
+  }));
+});
+
+// Attachments are served from here rather than statically: data/ holds every company's private
+// files, and this route is behind the same sign-in as the rest of the API.
+api.get('/messages/:id/image', (c) => {
+  const m = get<Message>('SELECT * FROM messages WHERE id = ?', idOf(c));
+  if (!m?.image) throw new HttpError(404, 'No image on that message');
+  const img = readImage(m.company_id, m.image);
+  if (!img) throw new HttpError(404, 'That image is no longer on disk');
+  // The stored name carries a random suffix and never changes, so this can be cached hard.
+  return new Response(new Uint8Array(img.body), {
+    headers: { 'content-type': img.mime, 'cache-control': 'private, max-age=31536000, immutable' },
+  });
 });
 
 // Email

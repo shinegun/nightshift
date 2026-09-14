@@ -324,6 +324,13 @@ if (!all<{ name: string }>('PRAGMA table_info(messages)').some((col) => col.name
   db.exec(`UPDATE messages SET thread_id = (
     SELECT id FROM threads WHERE threads.company_id = messages.company_id AND threads.title = 'Earlier conversation')`);
 }
+if (!all<{ name: string }>('PRAGMA table_info(messages)').some((col) => col.name === 'image')) {
+  // Filename of an image the owner attached, under data/uploads/<company_id>/. The file stays on
+  // disk rather than in the row: a base64 image in `content` would be replayed into every prompt
+  // and shipped to the browser with every poll.
+  db.exec('ALTER TABLE messages ADD COLUMN image TEXT');
+}
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, id)');
 
 if (!all<{ name: string }>('PRAGMA table_info(tweets)').some((col) => col.name === 'posted_day')) {
@@ -352,7 +359,7 @@ export interface Thread {
 
 export interface Message {
   id: number; company_id: number; thread_id: number | null; role: 'user' | 'assistant';
-  content: string; created_at: string;
+  content: string; image: string | null; created_at: string;
 }
 
 export interface Request {

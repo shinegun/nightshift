@@ -8,8 +8,14 @@ import { clearIssue, reportIssue } from './health.ts';
 
 export interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
 export interface AssistantMsg { role: 'assistant'; content: string | null; reasoning_content?: string; tool_calls?: ToolCall[] }
+/** A user turn carrying more than text. Only images so far, as OpenAI-compatible parts. */
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export type Msg =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | ContentPart[] }
   | AssistantMsg
   | { role: 'tool'; tool_call_id: string; content: string };
 
