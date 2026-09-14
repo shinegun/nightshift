@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TEXT NOT NULL
 );
 
+-- One conversation with the co-founder. The chat used to be a single stream per company, which
+-- made "what did we decide about pricing?" unanswerable and replayed twenty unrelated turns into
+-- every prompt. A thread is the unit of both.
+CREATE TABLE IF NOT EXISTS threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_threads_company ON threads(company_id, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS emails (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -302,6 +314,18 @@ if (!all<{ name: string }>('PRAGMA table_info(tasks)').some((col) => col.name ==
   db.exec('ALTER TABLE tasks ADD COLUMN messages TEXT');
 }
 
+if (!all<{ name: string }>('PRAGMA table_info(messages)').some((col) => col.name === 'thread_id')) {
+  // Which conversation a message belongs to. Everything written before threads existed is one
+  // conversation per company — it genuinely was one — rather than being orphaned or dropped.
+  db.exec('ALTER TABLE messages ADD COLUMN thread_id INTEGER REFERENCES threads(id) ON DELETE CASCADE');
+  db.exec(`INSERT INTO threads (company_id, title, created_at, updated_at)
+           SELECT company_id, 'Earlier conversation', MIN(created_at), MAX(created_at)
+             FROM messages GROUP BY company_id`);
+  db.exec(`UPDATE messages SET thread_id = (
+    SELECT id FROM threads WHERE threads.company_id = messages.company_id AND threads.title = 'Earlier conversation')`);
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, id)');
+
 if (!all<{ name: string }>('PRAGMA table_info(tweets)').some((col) => col.name === 'posted_day')) {
   // The local day a post went out. posted_at is UTC, so counting OpEx per local day/month from
   // it would misfile posts made near midnight.
@@ -321,6 +345,15 @@ export interface Company {
 export type TaskType = 'fix' | 'feature' | 'research' | 'marketing' | 'outreach' | 'support' | 'ops';
 /** blocked = paused until the owner does something only a human can do (see the requests table). */
 export type TaskStatus = 'todo' | 'running' | 'done' | 'failed' | 'cancelled' | 'blocked';
+
+export interface Thread {
+  id: number; company_id: number; title: string; created_at: string; updated_at: string;
+}
+
+export interface Message {
+  id: number; company_id: number; thread_id: number | null; role: 'user' | 'assistant';
+  content: string; created_at: string;
+}
 
 export interface Request {
   id: number; company_id: number; title: string; why: string; steps: string; unblocks: string;

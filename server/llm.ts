@@ -18,7 +18,7 @@ export interface ToolDef {
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }
 
-export type LLMErrorCode = 'config' | 'budget' | 'api';
+export type LLMErrorCode = 'config' | 'budget' | 'api' | 'aborted';
 export class LLMError extends Error {
   code: LLMErrorCode;
   constructor(message: string, code: LLMErrorCode = 'api') { super(message); this.code = code; }
@@ -32,6 +32,9 @@ export interface ChatOpts {
   thinking?: 'enabled' | 'disabled';
   companyId?: number;
   taskId?: number;
+  /** Aborts the request in flight. The chat endpoint passes the browser's, so closing the
+   *  connection or pressing Stop really does stop the call, rather than leaving it to bill out. */
+  signal?: AbortSignal;
 }
 
 const RETRYABLE = new Set([408, 409, 429, 500, 502, 503, 504]);
@@ -86,7 +89,8 @@ export async function chat(opts: ChatOpts): Promise<AssistantMsg> {
     clearIssue('ai');
     return reply;
   } catch (e) {
-    if (!(e instanceof LLMError) || e.code !== 'budget') reportIssue('ai', e);
+    // Neither a spent budget nor a caller who stopped is an integration problem.
+    if (!(e instanceof LLMError) || (e.code !== 'budget' && e.code !== 'aborted')) reportIssue('ai', e);
     throw e;
   }
 }
@@ -112,6 +116,7 @@ async function chatOnce(opts: ChatOpts): Promise<AssistantMsg> {
 
   let lastErr = '';
   for (let attempt = 0; attempt < 4; attempt++) {
+    if (opts.signal?.aborted) throw new LLMError('Stopped.', 'aborted');
     if (attempt) await sleep(1500 * 2 ** (attempt - 1));
     let res: Response;
     try {
@@ -119,9 +124,14 @@ async function chatOnce(opts: ChatOpts): Promise<AssistantMsg> {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(num('llm_timeout_sec') * 1000),
+        // The caller's abort and the timeout both have to be able to end this.
+        signal: opts.signal
+          ? AbortSignal.any([opts.signal, AbortSignal.timeout(num('llm_timeout_sec') * 1000)])
+          : AbortSignal.timeout(num('llm_timeout_sec') * 1000),
       });
     } catch (e) {
+      // A caller who gave up is not a failure to retry or to report as an outage.
+      if (opts.signal?.aborted) throw new LLMError('Stopped.', 'aborted');
       lastErr = e instanceof Error ? e.message : String(e);
       continue;
     }

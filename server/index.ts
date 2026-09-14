@@ -11,7 +11,7 @@ import { actorStore, adoptLegacyPassword, currentActor, listUsers, removeUser, t
 import { streamSSE } from 'hono/streaming';
 import {
   DATA_DIR, all, companyBySlug, db, get, now, run,
-  type AdCampaign, type Commit, type Company, type Doc, type Email, type Expense, type Request, type Task, type Tweet,
+  type AdCampaign, type Commit, type Company, type Doc, type Email, type Expense, type Request, type Task, type Thread, type Tweet,
 } from './db.ts';
 import { COMPANY_KEYS, SECRET_KEYS, companyConfig, flag, num, publicSettings, setting, updateSettings } from './settings.ts';
 import { activity, emit, subscribe } from './events.ts';
@@ -485,13 +485,46 @@ api.post('/companies/:slug/docs', async (c) => {
 
 // Co-founder chat
 
-api.get('/companies/:slug/messages', (c) => c.json(all('SELECT * FROM (SELECT * FROM messages WHERE company_id = ? ORDER BY id DESC LIMIT 100) ORDER BY id', mustCompany(c).id)));
+// Conversations with the co-founder, newest first, each with how much is in it.
+api.get('/companies/:slug/threads', (c) => c.json(all(
+  `SELECT t.*, (SELECT COUNT(*) FROM messages m WHERE m.thread_id = t.id) AS messages,
+          (SELECT content FROM messages m WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS last
+     FROM threads t WHERE t.company_id = ? ORDER BY t.updated_at DESC, t.id DESC`, mustCompany(c).id)));
+
+api.patch('/threads/:id', async (c) => {
+  const t = threadById(c);
+  const title = String((await body(c)).title ?? '').trim().slice(0, 80);
+  if (!title) throw bad('A conversation needs a title');
+  run('UPDATE threads SET title = ? WHERE id = ?', title, t.id);
+  emit('messages', t.company_id);
+  return c.json({ ...t, title });
+});
+
+api.delete('/threads/:id', (c) => {
+  const t = threadById(c);
+  // The messages go with it: ON DELETE CASCADE is declared, but it only fires with foreign keys on.
+  run('DELETE FROM messages WHERE thread_id = ?', t.id);
+  run('DELETE FROM threads WHERE id = ?', t.id);
+  emit('messages', t.company_id);
+  return c.json({ ok: true });
+});
+
+api.get('/companies/:slug/messages', (c) => {
+  const co = mustCompany(c);
+  const thread = Number(c.req.query('thread') ?? 0);
+  if (!thread) return c.json([]);
+  return c.json(all('SELECT * FROM (SELECT * FROM messages WHERE thread_id = ? AND company_id = ? ORDER BY id DESC LIMIT 200) ORDER BY id', thread, co.id));
+});
 
 api.post('/companies/:slug/messages', async (c) => {
   const co = mustCompany(c);
-  const text = String((await body(c)).text ?? '').trim();
+  const b = await body(c);
+  const text = String(b.text ?? '').trim();
   if (!text) throw bad('Message is empty');
-  return c.json({ reply: await chatWithCofounder(co, text.slice(0, 8000)) });
+  const threadId = Number(b.thread_id ?? 0) || undefined;
+  // The browser's own signal: pressing Stop closes the connection, which ends the model call
+  // rather than leaving it to finish and bill.
+  return c.json(await chatWithCofounder(co, text.slice(0, 8000), threadId, c.req.raw.signal));
 });
 
 // Email
@@ -502,6 +535,12 @@ api.post('/companies/:slug/emails', async (c) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.to ?? ''))) throw bad('Enter a valid recipient');
   return c.json(await queueEmail(co, { to: b.to, subject: String(b.subject ?? ''), body: String(b.body ?? ''), kind: 'owner', force: true }));
 });
+
+const threadById = (c: Context) => {
+  const t = get<Thread>('SELECT * FROM threads WHERE id = ?', idOf(c));
+  if (!t) throw new HttpError(404, 'Conversation not found');
+  return t;
+};
 
 const emailById = (c: Context) => {
   const e = get<Email>('SELECT * FROM emails WHERE id = ?', idOf(c));

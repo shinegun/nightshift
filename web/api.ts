@@ -1,10 +1,11 @@
 /** JSON API helper. Mutations always send JSON so the server's CSRF guard can require it. */
-export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const method = opts.method ?? (opts.body !== undefined ? 'POST' : 'GET');
   const res = await fetch(`/api${path}`, {
     method,
     headers: method === 'GET' ? undefined : { 'content-type': 'application/json' },
     body: method === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+    signal: opts.signal,
   });
   // A body that isn't JSON is never a usable answer, even with a 200. An unknown /api path falls
   // through to the SPA catch-all and comes back as index.html; swallowing that into {} hands the

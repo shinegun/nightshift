@@ -1,7 +1,8 @@
-import { all, now, run, type Company } from '../db.ts';
+import { all, get, now, run, type Company, type Thread } from '../db.ts';
 import { emit } from '../events.ts';
 import { chat, type Msg } from '../llm.ts';
 import { localNow, stripToolMarkup, truncate } from '../util.ts';
+import { oneLine } from '../decisions.ts';
 import { companyBrief } from './prompts.ts';
 import { runTool, toolsFor, type ToolCtx } from './tools.ts';
 import { humanize, writingGuide } from '../humanizer.ts';
@@ -11,15 +12,32 @@ const CHAT_TOOLS = ['create_task', 'list_tasks', 'get_metrics', 'read_document',
 /** Tool rounds before the co-founder has to answer with what it has. */
 const MAX_STEPS = 6;
 
-/** The owner's conversation with the company's AI co-founder. */
-export async function chatWithCofounder(c: Company, text: string) {
-  run('INSERT INTO messages (company_id, role, content, created_at) VALUES (?, ?, ?, ?)', c.id, 'user', text, now());
+/**
+ * Starts a conversation, titled from its opening message. Free, and predictable enough to find
+ * again — asking the model for a title would cost a call per thread and vary every time. Rename
+ * it from the thread list if it turns out to be about something else.
+ */
+export function createThread(c: Company, firstMessage: string): Thread {
+  const title = oneLine(firstMessage, 60) || 'New conversation';
+  const r = run('INSERT INTO threads (company_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)', c.id, title, now(), now());
+  emit('messages', c.id);
+  return get<Thread>('SELECT * FROM threads WHERE id = ?', r.id)!;
+}
+
+/** The owner's conversation with the company's AI co-founder, within one thread. */
+export async function chatWithCofounder(c: Company, text: string, threadId?: number, signal?: AbortSignal) {
+  const thread = threadId
+    ? get<Thread>('SELECT * FROM threads WHERE id = ? AND company_id = ?', threadId, c.id) ?? createThread(c, text)
+    : createThread(c, text);
+
+  run('INSERT INTO messages (company_id, thread_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)', c.id, thread.id, 'user', text, now());
   emit('messages', c.id);
 
   // Earlier turns go in as a transcript rather than assistant messages: DeepSeek's
-  // thinking mode rejects tool requests whose history lacks reasoning_content.
+  // thinking mode rejects tool requests whose history lacks reasoning_content. Scoped to this
+  // thread, so a question about pricing does not replay last week's argument about the roadmap.
   const history = all<{ role: string; content: string }>(
-    'SELECT role, content FROM (SELECT * FROM messages WHERE company_id = ? ORDER BY id DESC LIMIT 21) ORDER BY id', c.id,
+    'SELECT role, content FROM (SELECT * FROM messages WHERE thread_id = ? ORDER BY id DESC LIMIT 21) ORDER BY id', thread.id,
   ).slice(0, -1);
   const transcript = history.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${truncate(m.content, 1500)}`).join('\n\n');
 
@@ -50,9 +68,10 @@ ${writingGuide(c)}`,
     if (step === MAX_STEPS) {
       messages.push({ role: 'user', content: 'You are out of tool calls. Stop calling tools and reply now in plain text: what you found, what you could not check, and what you want to do about it.' });
     }
-    const m = await chat({ messages, tools: step === MAX_STEPS ? undefined : tools, companyId: c.id });
+    const m = await chat({ messages, tools: step === MAX_STEPS ? undefined : tools, companyId: c.id, signal });
     messages.push(m);
     if (!m.tool_calls?.length) { reply = m.content?.trim() ?? ''; break; }
+    if (signal?.aborted) throw new Error('Stopped.');
     for (const call of m.tool_calls) {
       let args: unknown = null;
       try { args = JSON.parse(call.function.arguments || '{}'); } catch { /* reported below */ }
@@ -64,7 +83,8 @@ ${writingGuide(c)}`,
   reply = stripToolMarkup(reply);
   reply ||= "I've queued that up.";
   reply = await humanize(reply, 'a chat reply to the company owner', c);
-  run('INSERT INTO messages (company_id, role, content, created_at) VALUES (?, ?, ?, ?)', c.id, 'assistant', reply, now());
+  run('INSERT INTO messages (company_id, thread_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)', c.id, thread.id, 'assistant', reply, now());
+  run('UPDATE threads SET updated_at = ? WHERE id = ?', now(), thread.id);
   emit('messages', c.id);
-  return reply;
+  return { reply, threadId: thread.id };
 }
