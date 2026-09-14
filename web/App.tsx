@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, del } from './api.ts';
 import type { AppState } from './types.ts';
-import { Toaster, useLive, useRoute, usd } from './lib.tsx';
+import { Toaster, useLive, useRoute } from './lib.tsx';
 import { AnimatePresence, Collapse, EASE, MotionProvider, motion, useSmoothScroll } from './motion.tsx';
+import { Sidebar } from './Sidebar.tsx';
 import { Home } from './Home.tsx';
 import { Dashboard } from './Dashboard.tsx';
 import { Settings } from './Settings.tsx';
@@ -24,43 +25,9 @@ export function App() {
   return (
     <MotionProvider>
     <div className="shell">
-      <nav className="topbar">
-        <a className="brand" href="#/"><span className="brand-moon" aria-hidden>☾</span> Nightshift</a>
-        <div className="topbar-links">
-          <a href="#/" className={page === 'home' ? 'active' : ''}>Companies</a>
-          <a href="#/settings" className={page === 'settings' ? 'active' : ''}>Settings</a>
-        </div>
-        {state && (
-          // One number, because only one of these stops the agents: today's model spend against
-          // the daily cap. The other two mattered enough to keep, not enough to make you parse
-          // three figures and two different meanings of "mo" on every page.
-          <details className={`menu spend ${over ? 'over' : ''}`}>
-            <summary className="mono spend-summary">
-              {state.night ? '☾' : '☀'} {usd(state.spentToday)}{state.budget > 0 ? ` / ${usd(state.budget)}` : ''} today ▾
-            </summary>
-            <div className="menu-items spend-items">
-              <div className={`spend-row ${over ? 'over' : ''}`}>
-                <span>AI tokens today</span>
-                <span className="mono">{usd(state.spentToday)} / {state.budget > 0 ? usd(state.budget) : '∞'}</span>
-              </div>
-              <div className="spend-row">
-                <span>AI tokens this month</span>
-                <span className="mono">{usd(state.spentThisMonth)} / {state.monthlyBudget > 0 ? usd(state.monthlyBudget) : '∞'}</span>
-              </div>
-              {state.opex && (
-                <div className={`spend-row ${state.opex.cap > 0 && state.opex.month > state.opex.cap ? 'over' : ''}`}>
-                  <span>Everything this month</span>
-                  <span className="mono">{usd(state.opex.month)}{state.opex.cap > 0 ? ` / ${usd(state.opex.cap)}` : ''}</span>
-                </div>
-              )}
-              <p className="spend-note muted small">
-                The first two are model tokens only, and either one reaching its cap pauses the agents.
-                The last adds X posts and subscriptions, and only reports.
-              </p>
-            </div>
-          </details>
-        )}
-      </nav>
+      <Sidebar state={state} route={route} page={page} over={over} />
+
+      <div className="pane">
 
       {/* Banners appear and disappear under you while you are reading the page, so they open and
           close on their own height instead of shoving everything down a step. */}
@@ -101,6 +68,7 @@ export function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+      </div>
       <Toaster />
     </div>
     </MotionProvider>

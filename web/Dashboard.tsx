@@ -3,6 +3,7 @@ import { api, del, patch, post } from './api.ts';
 import type { Activity, DashboardData } from './types.ts';
 import { Toggle, go, timeAgo, useAction, useLive } from './lib.tsx';
 import { AnimatePresence, DUR, EASE, SPRING, Stagger, motion } from './motion.tsx';
+import { publishNeedsYou } from './Sidebar.tsx';
 import { MOODS, Mascot } from './Mascot.tsx';
 import { Chat } from './Chat.tsx';
 import {
@@ -19,6 +20,14 @@ export type ModalState =
   | { kind: 'newTask' }
   | { kind: 'compose'; to?: string }
   | { kind: 'newAd' };
+
+/** Pushes the "needs you" count to the rail. A component so the effect can run after render. */
+function NeedsYouBeacon({ n }: { n: number }) {
+  useEffect(() => { publishNeedsYou(n); }, [n]);
+  // Clear it on the way out, so a stale badge does not follow you to another page.
+  useEffect(() => () => { publishNeedsYou(0); }, []);
+  return null;
+}
 
 function Terminal({ lines }: { lines: Activity[] }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -82,15 +91,17 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
   const closeMenu = (e: React.MouseEvent) => (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open');
   const ctx = { d, slug, base, load, setModal };
   const current: ViewKey = VIEWS.some((v) => v.key === view) ? (view as ViewKey) : 'today';
-  // The only count worth putting on a tab: the number of things that will not move without you.
-  // Same helper the card's own header uses, so the tab and the list can never disagree.
+  // The only count worth badging: the number of things that will not move without you. The rail
+  // draws it, the card's own header draws it, and both read this one helper so they cannot
+  // disagree — see `publishNeedsYou`.
   const waiting = needsYouCount(d);
 
   return (
     <div className="container dash">
+      <NeedsYouBeacon n={waiting} />
       <header className="dash-head">
         <div className="dash-title">
-          <Mascot mood={mood} size={96} />
+          <Mascot mood={mood} size={64} />
           <div>
             {/* Keyed on mood, so the label is replaced rather than edited in place — the company
                 going from "On shift" to "Stuck" should be something you catch out of the corner
@@ -127,6 +138,8 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
         </div>
       </header>
 
+      {/* The two switches are company-wide state, not a view, so they sit with the company name
+          rather than in a band of their own above the content. */}
       <div className="modes">
         <Toggle on={Boolean(c.auto_mode)} disabled={busy === 'mode'} label={<><strong>⚡ Auto Mode</strong><small>work the queue during the day</small></>}
           onChange={(v) => run('mode', async () => { await patch(base, { auto_mode: v }); await load(); })} />
@@ -140,21 +153,6 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
           <button className="btn small" disabled={busy === 'boot'} onClick={() => run('boot', () => post(`${base}/bootstrap`), 'Setup restarted')}>Retry setup</button>
         </div>
       )}
-
-      <nav className="views" role="tablist">
-        {VIEWS.map((v) => (
-          <a key={v.key} role="tab" aria-selected={current === v.key} className={current === v.key ? 'active' : ''}
-            href={`#/c/${encodeURIComponent(slug)}${v.key === 'today' ? '' : `/${v.key}`}`}>
-            {v.label}
-            {v.key === 'today' && waiting > 0 && (
-              <motion.span className="count" key={waiting} initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={SPRING}>{waiting}</motion.span>
-            )}
-            {/* A shared `layoutId` makes this one element that travels between tabs, instead of
-                five underlines taking turns being visible. */}
-            {current === v.key && <motion.span className="underline" layoutId="view-underline" transition={{ duration: 0.3, ease: EASE }} />}
-          </a>
-        ))}
-      </nav>
 
       {/* Switching view swaps a whole screenful of cards at once. Staggering them by 40ms turns
           that from a flash into something you can follow, and `mode="wait"` keeps the outgoing
