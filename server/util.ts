@@ -60,3 +60,25 @@ export function extractJSON<T = any>(text: string): T | null {
 }
 
 export const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * Removes tool-call markup a model emitted as prose instead of as a tool call.
+ *
+ * DeepSeek writes calls in its own markup, and when a model wants a tool it cannot have — the
+ * agent loop withholds them on its final step — it sometimes writes that markup into the reply.
+ * The owner should never see it. Agents are told about the last step (see runner.ts and
+ * agents/chat.ts) so this is the net under that, not the fix for it.
+ *
+ * U+FF5C is the fullwidth vertical line the markers are built from.
+ */
+export function stripToolMarkup(text: string): string {
+  return text
+    // A complete block, opener through closer.
+    .replace(/<\uFF5C[^>]*\bcalls>[\s\S]*?<\/\uFF5C[^>]*\bcalls>/g, '')
+    // One that ran out of output before its closer.
+    .replace(/<\uFF5C[^>]*\bcalls>[\s\S]*$/g, '')
+    // Any stray opener or closer left behind.
+    .replace(/<\/?\uFF5C[^>]*>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

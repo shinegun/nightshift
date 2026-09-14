@@ -3,7 +3,7 @@ import { num } from '../settings.ts';
 import { activity, emit } from '../events.ts';
 import { chat, LLMError, type Msg } from '../llm.ts';
 import { snapshot } from '../sites.ts';
-import { errMsg, truncate } from '../util.ts';
+import { errMsg, stripToolMarkup, truncate } from '../util.ts';
 import { agentSystemPrompt } from './prompts.ts';
 import { humanize } from '../humanizer.ts';
 import { runTool, toolsForTask, type ToolCtx } from './tools.ts';
@@ -114,6 +114,9 @@ export async function runTask(taskId: number): Promise<Task | undefined> {
     }
 
     if (ctx.siteChanged) snapshot(company.slug, `Task #${task.id}: ${task.title}`);
+    // The final step withholds tools; an agent that still wanted one can write the call markup
+    // into its summary, and that summary is what the owner reads on the task and in the report.
+    summary = stripToolMarkup(summary);
     summary = await humanize(summary, 'a task summary for the company owner', company);
     if (ctx.blockedBy) {
       // Waiting on the owner: pause rather than fail, and requeue when they mark the request done.
