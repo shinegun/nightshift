@@ -28,6 +28,30 @@ async function vercel(method: string, path: string, body?: unknown) {
 
 export const projectNameFor = (c: Company) => c.vercel_project || `${c.slug}-site`.slice(0, 90);
 
+// States a deployment never moves on from. BLOCKED belongs here and was missing: Vercel can
+// refuse a deployment outright, and a refusal that isn't recognised as final costs the whole
+// poll budget (40 x 3s) before the wait gives up and reports it anyway.
+export const TERMINAL_STATES = ['READY', 'ERROR', 'CANCELED', 'BLOCKED'];
+/** v13 calls it readyState; some deployment payloads carry it as state. */
+const stateOf = (d: { readyState?: string; state?: string }) => (d.readyState ?? d.state ?? '') as string;
+
+/** What the owner can actually do about a deployment that never reached READY. */
+export function deployProblem(state: string, id: string, waitedSeconds: number) {
+  if (!TERMINAL_STATES.includes(state)) {
+    return `Vercel was still on "${state}" for deployment ${id} after ${waitedSeconds}s, so we stopped waiting. The deploy may still finish on its own — check the Vercel dashboard before deploying again.`;
+  }
+  if (state === 'BLOCKED') {
+    return `Vercel blocked deployment ${id} before it built, so the site was not updated. Vercel blocks a deployment when the account is over a limit, or when the commit's Git author is not a member of the Vercel account — a Hobby account has exactly one member, so anything deployed under a bot's or a second person's identity is blocked by design. Open the deployment in the Vercel dashboard for the reason it gives.`;
+  }
+  if (state === 'ERROR') {
+    return `Vercel deployment ${id} failed on Vercel's side, so the site was not updated. The build log in the Vercel dashboard has the reason.`;
+  }
+  if (state === 'CANCELED') {
+    return `Vercel deployment ${id} was canceled before it finished, so the site was not updated. A newer deployment of the same project supersedes an older one, so this is expected when two deploys overlap.`;
+  }
+  return `Deployment ${id} ended in state ${state}, so the site was not updated.`;
+}
+
 export interface DeployResult {
   url: string;
   deploymentId: string;
@@ -47,7 +71,12 @@ export async function deploySite(c: Company, opts: { force?: boolean } = {}): Pr
     clearIssue('vercel');
     return r;
   } catch (e) {
-    if (isAccountProblem(e)) reportIssue('vercel', e);
+    // A deployment Vercel accepts and then refuses is not an account problem: it carries no HTTP
+    // status, so isAccountProblem said no and the failure was recorded nowhere. The deploy failed,
+    // the owner was told only if they happened to be watching the request, and the health banner
+    // stayed green. This module's rule is that nothing fails silently, so a state Vercel itself
+    // ended on is reported the same as a rejected token.
+    if (isAccountProblem(e) || (e as { vercelState?: string })?.vercelState) reportIssue('vercel', e);
     throw e;
   }
 }
@@ -71,14 +100,18 @@ async function deployOnce(c: Company, force: boolean): Promise<DeployResult> {
     projectSettings: { framework: null, buildCommand: null, installCommand: null, outputDirectory: null },
   });
 
-  let state = dep.readyState as string;
+  let state = stateOf(dep);
   let info = dep;
-  for (let i = 0; i < 40 && !['READY', 'ERROR', 'CANCELED'].includes(state); i++) {
+  let waited = 0;
+  for (let i = 0; i < 40 && !TERMINAL_STATES.includes(state); i++) {
     await sleep(3000);
+    waited += 3;
     info = await vercel('GET', `/v13/deployments/${dep.id}`);
-    state = info.readyState;
+    state = stateOf(info);
   }
-  if (state !== 'READY') throw new Error(`Deployment ${dep.id} ended in state ${state}`);
+  // The state travels on the error so deploySite can tell "Vercel refused this" apart from
+  // "the request never got there", and report the first to the owner instead of dropping it.
+  if (state !== 'READY') throw Object.assign(new Error(deployProblem(state, dep.id, waited)), { vercelState: state });
 
   // First deploy of a new project: make sure the production URL is public.
   if (!c.vercel_project) {
