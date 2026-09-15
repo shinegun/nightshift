@@ -191,9 +191,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .type-research { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
 .type-marketing, .type-outreach { background: color-mix(in srgb, var(--lamp) 18%, transparent); color: var(--lamp); }
 .pill { display: inline-block; font: 500 var(--fs-xs)/1 var(--sans); padding: .25rem .5rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); text-transform: lowercase; }
-.pill-live, .pill-done, .pill-sent, .pill-posted, .pill-active, .pill-received { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
-.pill-error, .pill-failed { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
-.pill-pending_approval, .pill-paused, .pill-bootstrapping, .pill-running { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.pill-live, .pill-done, .pill-sent, .pill-posted, .pill-active, .pill-received, .pill-success { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.pill-error, .pill-failed, .pill-failure, .pill-timed_out { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
+.pill-pending_approval, .pill-paused, .pill-bootstrapping, .pill-running, .pill-cancelled, .pill-queued { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .tabs { display: flex; gap: .2rem; border-bottom: 1px solid var(--line); margin-bottom: .3rem; overflow-x: auto; }
 .tabs button { font: var(--fs-xs) var(--sans); background: none; border: 0; padding: .45rem .7rem; color: var(--ink-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tabs button.active { color: var(--ink); border-color: var(--ink); }
@@ -502,4 +502,13 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .side-spend { border-top: 0; margin-top: 0; padding: 0 0 0 .5rem; }
   .spend-bar { display: none; }
   .container { max-width: none; }
+}
+
+/* A CI failure's log window. Long and wide by nature, so it scrolls rather than stretching the
+   card: an 80-line stack trace must not push the deploy button off the screen. */
+.ci-log {
+  background: var(--surface-2); color: var(--ink-2);
+  font: var(--fs-xs)/1.5 var(--mono);
+  padding: .7rem; border-radius: 8px; margin: .4rem 0 0;
+  max-height: 18rem; overflow: auto; white-space: pre; tab-size: 2;
 }

@@ -7,7 +7,7 @@ import { publishNeedsYou } from './Sidebar.tsx';
 import { MOODS, Mascot } from './Mascot.tsx';
 import { Chat } from './Chat.tsx';
 import {
-  AdsCard, ApprovalsCard, BusinessCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard, needsYouCount,
+  AdsCard, ApprovalsCard, BusinessCard, CiCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard, needsYouCount,
 } from './panels.tsx';
 import { CompanySettingsModal, ComposeEmailModal, DocModal, EmailModal, NewAdModal, NewTaskModal, TaskModal } from './modals.tsx';
 
@@ -180,7 +180,7 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
               <PaymentsCard {...ctx} />
             </div>
           )}
-          {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /></div>}
+          {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /><CiCard {...ctx} /></div>}
           {current === 'numbers' && (
             <div className="grid">
               <BusinessCard {...ctx} />

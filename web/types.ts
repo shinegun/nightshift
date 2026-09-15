@@ -7,7 +7,7 @@ export interface OwnerRequest {
   status: 'open' | 'done' | 'dismissed'; blocked_task_id: number | null; created_at: string;
 }
 export type Integration = 'email' | 'vercel' | 'stripe' | 'x' | 'meta';
-export type HealthKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta';
+export type HealthKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github';
 /** ready = usable · off = not set up / misconfigured · error = set up, but the last real attempt failed */
 export interface Health { state: 'ready' | 'off' | 'error'; message: string; at?: string }
 export interface Issue { key: string; label: string; message: string; at: string }
@@ -116,6 +116,24 @@ export interface Commit {
   id: number; status: 'pending_approval' | 'pushing' | 'pushed' | 'failed' | 'rejected';
   branch: string; message: string; summary: string;
   sha: string | null; remote: string | null; error: string | null; created_at: string; pushed_at: string | null;
+}
+
+/** CI for a company's site repo: the newest run of each workflow, and where any failure is. */
+export interface WorkflowRun {
+  id: number; name: string; number: number;
+  status: string; conclusion: string | null;
+  event: string; createdAt: string; url: string; sha: string;
+}
+export interface CiFailure {
+  run: WorkflowRun; job: string; step: string; stepNumber: number; stepCount: number;
+  /** The log from the diagnostic through the error marker. */
+  log: string[];
+  /** The one line worth reading first. */
+  line: string;
+}
+export interface CiState {
+  connected: boolean; repo?: string;
+  runs: WorkflowRun[]; failures: CiFailure[];
 }
 
 /** Version-control state of a company's site folder. */

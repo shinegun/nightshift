@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
-import type { AdCampaign, DashboardData, DocMeta, GitState, Task, TaskStatus } from './types.ts';
+import type { AdCampaign, CiState, DashboardData, DocMeta, GitState, Task, TaskStatus, WorkflowRun } from './types.ts';
 import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
 import { AnimatePresence, EASE, Rolling, Row, SPRING, motion } from './motion.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
@@ -631,6 +631,77 @@ export function WaitlistCard({ d }: PanelProps) {
           {d.waitlist.map((w) => <li key={w.email} className="list-item"><span className="grow mono small">{w.email}</span><span className="muted small">{timeAgo(w.created_at)}</span></li>)}
         </ul>
       )}
+    </Card>
+  );
+}
+
+/**
+ * CI for the site repo. Self-fetching rather than part of the dashboard payload: it calls GitHub,
+ * and the payload is refetched on every activity event, so folding it in would put a third-party
+ * request on a hot path.
+ *
+ * It answers "is the pipeline alive", which is why it lives on Site next to the deploy. A failure
+ * is shown, never repaired: the log window and the link are there so a person can read what broke,
+ * which is the whole point of not letting an agent fix CI quietly.
+ */
+export function CiCard({ d, base }: PanelProps) {
+  const [ci, setCi] = useState<CiState | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setCi(null); setFailed(false);
+    api<CiState>(`${base}/ci`).then((r) => live && setCi(r)).catch(() => live && setFailed(true));
+    return () => { live = false; };
+  }, [base]);
+
+  // Nothing set up, nothing wrong, nothing to say. Same rule the other integration cards follow.
+  if (failed && healthIsQuiet(d.health.github)) return null;
+  if (ci && !ci.connected && healthIsQuiet(d.health.github)) return null;
+
+  // GitHub's own words, so the pill matches what the Actions tab says. The stylesheet carries
+  // success / failure / cancelled / queued alongside the vocabulary the rest of the app uses.
+  const badge = (r: WorkflowRun) => (r.status !== 'completed' ? r.status.replace('in_progress', 'running') : r.conclusion ?? 'unknown');
+
+  return (
+    <Card title="Pipeline" action={ci?.repo
+      ? <a className="btn small ghost" href={`https://github.com/${ci.repo}/actions`} target="_blank" rel="noreferrer">Open Actions ↗</a>
+      : undefined}>
+      <HealthNote h={d.health.github} label="GitHub Actions" />
+      {!ci && !failed && <div className="kv"><span>Workflows</span><span className="muted">checking…</span></div>}
+      {ci && !ci.connected && (
+        <div className="kv">
+          <span>Workflows</span>
+          <span className="muted">
+            no GitHub remote on this site folder, so there is no CI to watch. Add one and this fills in.
+          </span>
+        </div>
+      )}
+      {ci?.connected && !ci.runs.length && <Empty>No workflow has run in this repository yet.</Empty>}
+      {ci?.connected && ci.runs.map((r) => (
+        <div className="kv" key={r.id}>
+          <span>{r.name}</span>
+          <span>
+            <Pill status={badge(r)} />
+            {' '}<a href={r.url} target="_blank" rel="noreferrer">#{r.number}</a>
+            <span className="muted"> · {r.event} · <span className="mono">{r.sha}</span>{r.createdAt ? ` · ${timeAgo(r.createdAt)}` : ''}</span>
+          </span>
+        </div>
+      ))}
+      {ci?.failures.map((f) => (
+        <details className="publish" key={f.run.id} open>
+          <summary>
+            {f.run.name} #{f.run.number} failed at step {f.stepNumber}
+            {f.stepCount ? ` of ${f.stepCount}` : ''}, “{f.step}”
+          </summary>
+          {f.line && <p className="health error">{f.line}</p>}
+          {f.log.length
+            ? <pre className="ci-log">{f.log.join('\n')}</pre>
+            : <p className="hint">No log was returned for that job. Open the run on GitHub to read it.</p>}
+          <p className="hint">
+            Nightshift does not change workflows or push fixes. Read this, then decide what to do.
+          </p>
+        </details>
+      ))}
     </Card>
   );
 }
