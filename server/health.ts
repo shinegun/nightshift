@@ -10,14 +10,14 @@ import { errMsg } from './util.ts';
 // provider down, permission denied) are reported here by whatever code hit them and
 // cleared by the next success. Nothing is allowed to fail silently.
 
-export type IntegrationKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta';
+export type IntegrationKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github';
 /** ready = usable · off = not set up / misconfigured · error = set up, but the last real attempt failed */
 export interface Health { state: 'ready' | 'off' | 'error'; message: string; at?: string }
 
-export const INTEGRATIONS: IntegrationKey[] = ['ai', 'search', 'email', 'inbox', 'vercel', 'publicUrl', 'stripe', 'x', 'meta'];
+export const INTEGRATIONS: IntegrationKey[] = ['ai', 'search', 'email', 'inbox', 'vercel', 'publicUrl', 'stripe', 'x', 'meta', 'github'];
 export const HEALTH_LABEL: Record<IntegrationKey, string> = {
   ai: 'AI', search: 'Web search', email: 'Email sending', inbox: 'Inbox', vercel: 'Vercel deploy',
-  publicUrl: 'Visitor tracking', stripe: 'Stripe', x: 'X', meta: 'Meta Ads',
+  publicUrl: 'Visitor tracking', stripe: 'Stripe', x: 'X', meta: 'Meta Ads', github: 'GitHub Actions',
 };
 
 /** Which settings belong to which integration — scopes company overrides and clears stale errors after edits. */
@@ -31,6 +31,7 @@ const OWNED_BY: [RegExp, IntegrationKey[]][] = [
   [/^stripe_/, ['stripe']],
   [/^x_/, ['x']],
   [/^(meta_|ads_)/, ['meta']],
+  [/^github_/, ['github']],
 ];
 const owners = (settingKey: string) => OWNED_BY.filter(([re]) => re.test(settingKey)).flatMap(([, k]) => k);
 
@@ -116,6 +117,10 @@ function staticProblem(key: IntegrationKey, c?: Pick<Company, 'config'>): string
     }
     case 'vercel':
       return s('vercel_token') ? null : 'No Vercel token — create one at vercel.com/account/tokens.';
+    case 'github':
+      // Optional: a company whose site folder has no GitHub remote has no CI to watch, and that
+      // is not a fault. Only a missing token is, once the owner has asked for this at all.
+      return s('github_token') ? null : 'No GitHub token — create a fine-grained token with Actions: read to see whether a site repo\'s CI is passing.';
     case 'publicUrl': {
       const url = s('public_base_url');
       if (!url) return "Public URL is empty — sites deployed to Vercel can't report visits or waitlist signups.";

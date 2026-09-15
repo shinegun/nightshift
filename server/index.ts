@@ -21,6 +21,7 @@ import { publishPlan, summarize } from './publish.ts';
 import { webSearch } from './integrations/search.ts';
 import { companyAddress, testEmail, testImap } from './integrations/email.ts';
 import { deploySite, testVercel } from './integrations/vercel.ts';
+import { checkCompanyWorkflows, testGithub } from './integrations/github.ts';
 import { createPaymentLink, testStripe } from './integrations/stripe.ts';
 import { testX } from './integrations/x.ts';
 import { testMeta } from './integrations/meta.ts';
@@ -688,6 +689,14 @@ api.post('/companies/:slug/payment-links', async (c) => {
 
 // Website
 
+/** CI for this company's site repo: the newest run of each workflow, and where any failure is. */
+api.get('/companies/:slug/ci', async (c) => {
+  const co = mustCompany(c);
+  const report = await checkCompanyWorkflows(co);
+  if (!report) return c.json({ connected: false, runs: [], failures: [] });
+  return c.json({ connected: true, repo: `${report.ref.owner}/${report.ref.repo}`, runs: report.runs, failures: report.failures });
+});
+
 /** What a deploy would publish right now, and what it would leave out. */
 api.get('/companies/:slug/publish', (c) => {
   const co = mustCompany(c);
@@ -750,12 +759,13 @@ api.post('/settings/test/:what', async (c) => {
       email: () => testEmail(setting('owner_email')),
       imap: testImap,
       vercel: testVercel,
+      github: testGithub,
       stripe: () => testStripe(),
       x: () => testX(global),
       meta: () => testMeta(global),
     };
     const TEST_KEYS: Record<string, IntegrationKey> = {
-      llm: 'ai', search: 'search', email: 'email', imap: 'inbox', vercel: 'vercel', stripe: 'stripe', x: 'x', meta: 'meta',
+      llm: 'ai', search: 'search', email: 'email', imap: 'inbox', vercel: 'vercel', stripe: 'stripe', x: 'x', meta: 'meta', github: 'github',
     };
     const what = c.req.param('what') ?? '';
     const fn = tests[what];

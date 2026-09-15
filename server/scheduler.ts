@@ -4,6 +4,7 @@ import { emit } from './events.ts';
 import { budgetStop, spentToday } from './llm.ts';
 import { pollInbox } from './integrations/email.ts';
 import { syncRevenue } from './integrations/stripe.ts';
+import { checkCompanyWorkflows } from './integrations/github.ts';
 import { fetchInsights, type MetaIds } from './integrations/meta.ts';
 import { recoverStaleTasks, runTask, runningTasks } from './agents/runner.ts';
 import { morningReport, planNight } from './agents/night.ts';
@@ -97,6 +98,13 @@ async function syncIntegrations() {
         clearIssue('meta', c);
         emit('ads', c.id);
       } catch (e) { reportIssue('meta', e, c); }
+    }
+  }
+  // CI for each company's site repo. Read-only, and quiet for a company whose site folder has no
+  // GitHub remote: checkCompanyWorkflows returns null rather than reporting anything.
+  if (setting('github_token')) {
+    for (const c of all<Company>('SELECT * FROM companies')) {
+      await checkCompanyWorkflows(c).catch(() => {}); // already reported against this company
     }
   }
   setSetting('synced_at', now());

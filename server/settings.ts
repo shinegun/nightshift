@@ -81,6 +81,7 @@ export const SECRET_KEYS = new Set([
   'smtp_pass',
   'imap_pass',
   'vercel_token',
+  'github_token',
   'stripe_secret_key',
   'x_api_key',
   'x_api_secret',
