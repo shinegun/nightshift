@@ -77,6 +77,13 @@ const SECTIONS: Section[] = [
       { key: 'public_base_url', label: 'Public URL of this Nightshift', type: 'url', placeholder: 'https://nightshift.example.com', help: 'Where deployed sites send visits and waitlist signups. Point a tunnel at the public port (see README) — it serves only the tracker, never the dashboard.' },
     ],
   },
+  {
+    id: 'github', title: 'GitHub Actions', test: 'github',
+    intro: 'Read-only. If a company\u2019s site folder is a GitHub repository, Nightshift checks whether its workflows are passing and shows what broke on the company\u2019s Site tab. It never edits a workflow, dispatches a run, or pushes a fix.',
+    fields: [
+      { key: 'github_token', label: 'GitHub token', secret: true, help: 'A fine-grained token with Repository permissions \u2192 Actions: read (and Metadata: read, which GitHub adds for you). Create one at github.com/settings/personal-access-tokens. A classic token needs the repo scope.' },
+    ],
+  },
   { id: 'stripe', title: 'Stripe', test: 'stripe', intro: 'Agents create products and payment links; completed checkouts show up as revenue.', fields: [{ key: 'stripe_secret_key', label: 'Secret key', secret: true, help: 'Use a restricted key or sk_test_… while trying it out.' }] },
   {
     id: 'x', title: 'X (Twitter)', test: 'x',
