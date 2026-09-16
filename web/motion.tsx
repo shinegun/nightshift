@@ -15,7 +15,6 @@ import {
   AnimatePresence, MotionConfig, animate, motion, useMotionValue, useReducedMotion,
   type Transition, type Variants,
 } from 'motion/react';
-import Lenis from 'lenis';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export { AnimatePresence, motion };
@@ -65,23 +64,6 @@ export const stagger = (gap = 0.06, delay = 0): Variants => ({
 /** Wraps the app so every `motion` element below honours the OS reduced-motion setting. */
 export function MotionProvider({ children }: { children: ReactNode }) {
   return <MotionConfig reducedMotion="user" transition={{ duration: DUR.rise, ease: EASE }}>{children}</MotionConfig>;
-}
-
-/**
- * Inertial scrolling, the other half of why fora feels the way it does — native scroll stops
- * dead, this one carries. Kept deliberately short (0.9s) because the dashboard has real work in
- * it and a page that keeps gliding after you have arrived is worse than one that stops.
- */
-export function useSmoothScroll() {
-  const reduce = useReducedMotion();
-  useEffect(() => {
-    if (reduce) return;
-    const lenis = new Lenis({ duration: 0.9, easing: (t) => 1 - (1 - t) ** 3 });
-    let frame = 0;
-    const raf = (time: number) => { lenis.raf(time); frame = requestAnimationFrame(raf); };
-    frame = requestAnimationFrame(raf);
-    return () => { cancelAnimationFrame(frame); lenis.destroy(); };
-  }, [reduce]);
 }
 
 /**

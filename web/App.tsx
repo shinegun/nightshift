@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, del } from './api.ts';
 import type { AppState } from './types.ts';
 import { Toaster, useLive, useRoute } from './lib.tsx';
-import { AnimatePresence, Collapse, EASE, MotionProvider, motion, useSmoothScroll } from './motion.tsx';
+import { AnimatePresence, Collapse, EASE, MotionProvider, motion } from './motion.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { Home } from './Home.tsx';
 import { Dashboard } from './Dashboard.tsx';
@@ -14,7 +14,6 @@ export function App() {
   const load = useCallback(() => api<AppState>('/state').then(setState).catch(() => {}), []);
   useEffect(() => { void load(); }, [load, route.join('/')]);
   useLive(null, load);
-  useSmoothScroll();
 
   const page = route[0] === 'c' && route[1] ? 'dashboard' : route[0] === 'settings' ? 'settings' : 'home';
   // Either cap stops the agents, so either one should turn the meter red.
