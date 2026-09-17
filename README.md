@@ -43,6 +43,7 @@ Requirements: Node 22.13+ (it uses the built-in `node:sqlite`).
 | **Website** | Static HTML/CSS/JS per company, previewed at `/s/<slug>/`, with version history and one-click restore, deployable to Vercel. A deploy publishes only what the pages actually link (see *What gets published* below). Waitlist forms and visitor counts work automatically. |
 | **Email** | Send through Resend or SMTP. Each company gets `you+company@yourdomain`. Replies are read over IMAP and become support tasks. |
 | **Stripe** | Agents create products and payment links. Completed checkouts show up as revenue. |
+| **Slack** | For your team's own workspace, over Socket Mode (Nightshift connects out, so nothing needs a public URL). Each company maps a **feedback channel** (new messages become Support tasks, and the thread hears back when the task ends) and a **team channel** (decisions with buttons that act on them, handoffs, failures, the morning report). Mention the app or DM it to talk to a bot: `@Nightshift support status`, `@Nightshift engineer do …`, `@Nightshift support teach …`, or just ask. Set up in Settings → Slack, which has the app manifest. |
 | **X / Meta Ads** | Posts and campaigns. Campaigns are always created paused, with a hard daily-budget cap. |
 
 ## What gets published
