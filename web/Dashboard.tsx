@@ -9,6 +9,7 @@ import { Chat } from './Chat.tsx';
 import {
   AdsCard, ApprovalsCard, BusinessCard, CiCard, DocsCard, EmailCard, PaymentsCard, ReportCard, TasksCard, WaitlistCard, WebsiteCard, XCard, needsYouCount,
 } from './panels.tsx';
+import { BotPage, TeamBeacon, TeamCard } from './Bots.tsx';
 import { CompanySettingsModal, ComposeEmailModal, DocModal, EmailModal, NewAdModal, NewTaskModal, TaskModal } from './modals.tsx';
 
 export type ModalState =
@@ -67,7 +68,7 @@ const VIEWS = [
 ] as const;
 type ViewKey = (typeof VIEWS)[number]['key'];
 
-export function Dashboard({ slug, view }: { slug: string; view?: string }) {
+export function Dashboard({ slug, view, sub }: { slug: string; view?: string; sub?: string }) {
   const [d, setD] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
@@ -91,6 +92,8 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
   const closeMenu = (e: React.MouseEvent) => (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open');
   const ctx = { d, slug, base, load, setModal };
   const current: ViewKey = VIEWS.some((v) => v.key === view) ? (view as ViewKey) : 'today';
+  // A bot's profile is a page under Work rather than a sixth view.
+  const botId = view === 'bot' && Number(sub) > 0 ? Number(sub) : null;
   // The only count worth badging: the number of things that will not move without you. The rail
   // draws it, the card's own header draws it, and both read this one helper so they cannot
   // disagree — see `publishNeedsYou`.
@@ -99,6 +102,7 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
   return (
     <div className="container dash">
       <NeedsYouBeacon n={waiting} />
+      <TeamBeacon bots={d.bots ?? []} />
       <header className="dash-head">
         <div className="dash-title">
           <Mascot mood={mood} size={64} />
@@ -159,20 +163,22 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
           set from overlapping the incoming one. `Card` carries the variants, so the cards are
           still the direct children of `.grid` and `.span-2` still spans. */}
       <AnimatePresence mode="wait" initial={false}>
-        <Stagger key={current} gap={0.04} dur={DUR.swap}>
-          {current === 'today' && (
+        <Stagger key={botId ? `bot${botId}` : current} gap={0.04} dur={DUR.swap}>
+          {botId && <BotPage {...ctx} botId={botId} />}
+          {!botId && current === 'today' && (
             <>
               <ApprovalsCard {...ctx} />
               <div className="grid"><ReportCard {...ctx} /></div>
             </>
           )}
-          {current === 'work' && (
+          {!botId && current === 'work' && (
             <div className="grid">
+              <TeamCard {...ctx} />
               <TasksCard {...ctx} />
               <DocsCard {...ctx} />
             </div>
           )}
-          {current === 'outbox' && (
+          {!botId && current === 'outbox' && (
             <div className="grid">
               <EmailCard {...ctx} />
               <XCard {...ctx} />
@@ -180,8 +186,8 @@ export function Dashboard({ slug, view }: { slug: string; view?: string }) {
               <PaymentsCard {...ctx} />
             </div>
           )}
-          {current === 'site' && <div className="grid"><WebsiteCard {...ctx} /><CiCard {...ctx} /></div>}
-          {current === 'numbers' && (
+          {!botId && current === 'site' && <div className="grid"><WebsiteCard {...ctx} /><CiCard {...ctx} /></div>}
+          {!botId && current === 'numbers' && (
             <div className="grid">
               <BusinessCard {...ctx} />
               <WaitlistCard {...ctx} />

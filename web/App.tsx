@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar.tsx';
 import { Home } from './Home.tsx';
 import { Dashboard } from './Dashboard.tsx';
 import { Settings } from './Settings.tsx';
+import { Library } from './Library.tsx';
 
 export function App() {
   const route = useRoute();
@@ -15,7 +16,7 @@ export function App() {
   useEffect(() => { void load(); }, [load, route.join('/')]);
   useLive(null, load);
 
-  const page = route[0] === 'c' && route[1] ? 'dashboard' : route[0] === 'settings' ? 'settings' : 'home';
+  const page = route[0] === 'c' && route[1] ? 'dashboard' : route[0] === 'settings' ? 'settings' : route[0] === 'library' ? 'library' : 'home';
   // Either cap stops the agents, so either one should turn the meter red.
   const over = state
     && ((state.budget > 0 && state.spentToday >= state.budget)
@@ -62,7 +63,8 @@ export function App() {
             transition={{ duration: 0.28, ease: EASE }}
           >
             {page === 'home' && <Home state={state} />}
-            {page === 'dashboard' && <Dashboard key={route[1]} slug={route[1]} view={route[2]} />}
+            {page === 'dashboard' && <Dashboard key={route[1]} slug={route[1]} view={route[2]} sub={route[3]} />}
+            {page === 'library' && <Library slug={route[1]} />}
             {page === 'settings' && <Settings onSaved={load} />}
           </motion.div>
         </AnimatePresence>

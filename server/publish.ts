@@ -32,7 +32,7 @@ const TEXT_EXT = new Set(['.html', '.htm', '.css', '.js', '.mjs', '.md', '.json'
 const ASSET_PATH_RE = /['"]([A-Za-z0-9._/-]+\.(?:json|html?|css|js|mjs|csv|txt|svg|png|jpe?g|gif|webp|avif|ico|woff2?|xml|webmanifest))['"]/gi;
 const MAX_FILE_BYTES = 2_000_000;
 const FIXTURE_STATUS = new Set(['fixture', 'demo', 'sample', 'test']);
-const SECRET_RE = /(sk-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{30,}|re_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|EAA[A-Za-z0-9]{30,}|vcp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+export const SECRET_RE = /(sk-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{30,}|re_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|EAA[A-Za-z0-9]{30,}|vcp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
 const SECRET_NAME_RE = /(^|\/)(\.env.*|\.npmrc|\.netrc|.*\.(pem|key|p12|pfx)|credentials.*\.json|id_rsa.*|id_ed25519.*)$/i;
 
 export interface PublishEntry { path: string; size: number; reason: string }

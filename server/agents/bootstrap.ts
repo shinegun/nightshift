@@ -10,6 +10,7 @@ import { errMsg, slugify } from '../util.ts';
 import { runTask } from './runner.ts';
 import { insertTask, saveDocument } from './tools.ts';
 import { humanize, writingGuide } from '../humanizer.ts';
+import { hireDefaultTeam } from '../bots.ts';
 
 // Idea → identity + mission (synchronous, so the dashboard URL is final and a
 // bad API key fails right away) → market research → roadmap + tasks → first
@@ -57,6 +58,7 @@ export async function createCompany(idea: string, name?: string): Promise<Compan
     uniqueSlug(finalName), finalName, idea.trim(), (p.tagline ?? '').slice(0, 140), now(), now(),
   );
   const c = companyById(r.id)!;
+  hireDefaultTeam(c.id);
   await saveProfile(c, p);
   activity(c.id, '> Waking up your AI team…');
   activity(c.id, '> Wrote the mission');

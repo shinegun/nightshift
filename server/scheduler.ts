@@ -7,6 +7,8 @@ import { syncRevenue } from './integrations/stripe.ts';
 import { checkCompanyWorkflows } from './integrations/github.ts';
 import { fetchInsights, type MetaIds } from './integrations/meta.ts';
 import { recoverStaleTasks, runTask, runningTasks } from './agents/runner.ts';
+import { insertTask } from './agents/tools.ts';
+import { queueRoutines } from './bots.ts';
 import { morningReport, planNight } from './agents/night.ts';
 import { errMsg, localNow } from './util.ts';
 import { clearIssue, noteUnroutedMail, reportIssue } from './health.ts';
@@ -59,6 +61,10 @@ async function tick() {
         await planNight(c).catch((e) => console.error(`[night] ${c.slug}: ${errMsg(e)}`));
       }
     }
+
+    // Bots' routines only add to the queue. Whether that work runs is still up to the modes and
+    // the budget below, like any other task.
+    queueRoutines(companies, insertTask);
 
     // Work the queue: one task per tick, round-robin by least recently worked company
     if (night ? !nightBudgetLeft() : !budgetLeft()) return;

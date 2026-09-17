@@ -38,6 +38,11 @@ import { decisions } from './decisions.ts';
 import { deleteImages, readImage, saveImage } from './uploads.ts';
 import { status as gitStatus } from './git.ts';
 import { errMsg, localNow } from './util.ts';
+import {
+  BotError, addOwnerMemory, addSkill, botById, botProfile, deleteTemplate, editMemory, editSkill, editTemplate, exportTemplate,
+  botForType, fireBot, forgetMemory, hireBot, importTemplate, library, memoryById, needsFor, notesToReview, recentHandoffs, removeSkill,
+  routinesOf, saveAsTemplate, skillById, teamSummary, templateById, updateBot,
+} from './bots.ts';
 
 const PORT = Number(process.env.PORT ?? 4455);
 const PUBLIC_PORT = Number(process.env.PUBLIC_PORT ?? 4456);
@@ -229,7 +234,7 @@ api.get('/companies/:slug', (c) => {
   // activity event. TaskModal fetches the full row from /tasks/:id when you open one.
   const tasks = all<Task>(
     `SELECT id, company_id, title, type, status, priority, source, steps, cost_usd,
-            created_at, started_at, finished_at, position,
+            created_at, started_at, finished_at, position, bot_id, from_bot_id,
             substr(description, 1, 280) AS description,
             substr(result, 1, 280) AS result,
             substr(error, 1, 280) AS error
@@ -250,7 +255,14 @@ api.get('/companies/:slug', (c) => {
     tasks,
     docs: all(`SELECT id, kind, title, created_at, updated_at FROM documents WHERE company_id = ?
                ORDER BY CASE kind WHEN 'mission' THEN 0 WHEN 'research' THEN 1 WHEN 'roadmap' THEN 2 ELSE 3 END, updated_at DESC`, co.id),
-    requests: all<Request>(`SELECT * FROM requests WHERE company_id = ? AND status = 'open' ORDER BY id`, co.id),
+    // Which bot asked, so "Needs you" can say who is waiting.
+    requests: all<Request>(
+      `SELECT r.*, b.name AS bot_name, b.color AS bot_color FROM requests r
+         LEFT JOIN tasks t ON t.id = r.source_task_id LEFT JOIN bots b ON b.id = t.bot_id
+        WHERE r.company_id = ? AND r.status = 'open' ORDER BY r.id`, co.id),
+    bots: teamSummary(co),
+    handoffs: recentHandoffs(co),
+    notesToReview: notesToReview(co),
     // The same list the morning brief is built from, so the two can never disagree.
     decisions: decisions(co),
     commits: all<Commit>('SELECT * FROM commits WHERE company_id = ? ORDER BY id DESC LIMIT 20', co.id),
@@ -305,6 +317,7 @@ api.patch('/companies/:slug', async (c) => {
 api.delete('/companies/:slug', (c) => {
   const co = mustCompany(c);
   if (isRunning(co.id)) throw new HttpError(409, 'A task is running — cancel it first.');
+  for (const b of all<{ id: number }>('SELECT id FROM bots WHERE company_id = ?', co.id)) run('DELETE FROM settings WHERE key LIKE ?', `routine:${b.id}:%`);
   run('DELETE FROM companies WHERE id = ?', co.id);
   run('DELETE FROM settings WHERE key IN (?, ?)', `launch_post:${co.id}`, `night_planned:${co.id}`);
   fs.rmSync(siteDir(co.slug), { recursive: true, force: true });
@@ -391,13 +404,15 @@ api.patch('/tasks/:id', async (c) => {
   if (!task) throw new HttpError(404, 'Task not found');
   if (task.status === 'running') throw new HttpError(409, 'Task is running');
   const b = await body(c);
+  const type = ['fix', 'feature', 'research', 'marketing', 'outreach', 'support', 'ops'].includes(b.type) ? b.type : task.type;
   run(
     'UPDATE tasks SET title = ?, description = ?, type = ?, priority = ?, status = ? WHERE id = ?',
     String(b.title ?? task.title).slice(0, 160), String(b.description ?? task.description),
-    ['fix', 'feature', 'research', 'marketing', 'outreach', 'support', 'ops'].includes(b.type) ? b.type : task.type,
-    [1, 2, 3].includes(b.priority) ? b.priority : task.priority,
+    type, [1, 2, 3].includes(b.priority) ? b.priority : task.priority,
     b.status === 'todo' ? 'todo' : task.status, id,
   );
+  // A new type is a different job, so it goes to whichever bot does that job.
+  if (type !== task.type) run('UPDATE tasks SET bot_id = ? WHERE id = ?', botForType(task.company_id, type)?.id ?? null, id);
   emit('tasks', task.company_id);
   return c.json({ ok: true });
 });
@@ -448,6 +463,174 @@ api.post('/requests/:id/dismiss', (c) => {
   }
   emit('requests', r.company_id);
   emit('tasks', r.company_id);
+  return c.json({ ok: true });
+});
+
+
+// Bots — the team at one company, and the library of templates they are hired from.
+
+/** Bot errors are the owner's to fix (a duplicate hire, a key pasted into a skill), so they come back as 400s. */
+const botAction = <T>(fn: () => T): T => {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof BotError) throw bad(e.message);
+    throw e;
+  }
+};
+
+const botAt = (c: Context) => {
+  const co = mustCompany(c);
+  const b = botById(Number(c.req.param('botId')));
+  if (!b || b.company_id !== co.id) throw new HttpError(404, 'Bot not found');
+  return { co, b };
+};
+const templateOf = (c: Context) => {
+  const t = templateById(idOf(c));
+  if (!t) throw new HttpError(404, 'Template not found');
+  return t;
+};
+
+api.get('/library', (c) => {
+  const slug = c.req.query('company');
+  const co = slug ? companyBySlug(slug) : undefined;
+  return c.json({ templates: library(co?.id), companies: all('SELECT id, slug, name FROM companies ORDER BY name') });
+});
+
+api.get('/library/:id/export', (c) => c.json(exportTemplate(templateOf(c))));
+
+api.post('/library/import', async (c) => {
+  const b = await body(c);
+  const id = botAction(() => importTemplate(b.template));
+  activity(null, `> Imported the bot template "${templateById(id)?.name}"`);
+  return c.json({ id });
+});
+
+api.patch('/library/:id', async (c) => {
+  const t = templateOf(c);
+  const b = await body(c);
+  botAction(() => editTemplate(t, b));
+  return c.json({ ok: true });
+});
+
+api.delete('/library/:id', (c) => {
+  botAction(() => deleteTemplate(templateOf(c)));
+  return c.json({ ok: true });
+});
+
+api.post('/library/:id/skills', async (c) => {
+  const t = templateOf(c);
+  const b = await body(c);
+  return c.json({ id: botAction(() => addSkill(t.id, String(b.title ?? ''), String(b.body ?? ''))) });
+});
+
+const skillOf = (c: Context) => {
+  const s = skillById(idOf(c));
+  if (!s) throw new HttpError(404, 'Skill not found');
+  return s;
+};
+api.patch('/skills/:id', async (c) => {
+  const s = skillOf(c);
+  const b = await body(c);
+  botAction(() => editSkill(s, b));
+  return c.json({ ok: true });
+});
+api.delete('/skills/:id', (c) => {
+  removeSkill(skillOf(c));
+  return c.json({ ok: true });
+});
+
+/** What hiring this template here would need, before you hire it. */
+api.get('/companies/:slug/hire/:id', (c) => {
+  const co = mustCompany(c);
+  const t = templateOf(c);
+  return c.json({
+    needs: needsFor(t, co),
+    hired: Boolean(get('SELECT id FROM bots WHERE company_id = ? AND template_id = ?', co.id, t.id)),
+    routines: routinesOf(t.id).map((r) => ({ id: r.id, defaultOn: Boolean(r.default_on) })),
+  });
+});
+
+api.post('/companies/:slug/bots', async (c) => {
+  const co = mustCompany(c);
+  const b = await body(c);
+  const id = botAction(() => hireBot(co.id, Number(b.templateId), {
+    name: typeof b.name === 'string' ? b.name : undefined,
+    color: typeof b.color === 'string' ? b.color : undefined,
+    routineIds: Array.isArray(b.routineIds) ? b.routineIds.map(Number) : undefined,
+  }));
+  activity(co.id, `> Hired the ${botById(id)?.name} bot`);
+  return c.json({ id });
+});
+
+api.get('/companies/:slug/bots/:botId', (c) => {
+  const { co, b } = botAt(c);
+  return c.json(botProfile(b, co));
+});
+
+api.patch('/companies/:slug/bots/:botId', async (c) => {
+  const { co, b } = botAt(c);
+  const p = await body(c);
+  botAction(() => updateBot(b, p));
+  if (p.status === 'paused' || p.status === 'active') activity(co.id, `> ${b.name} bot ${p.status === 'paused' ? 'paused' : 'back at work'}`);
+  return c.json({ ok: true });
+});
+
+api.delete('/companies/:slug/bots/:botId', (c) => {
+  const { co, b } = botAt(c);
+  if (get(`SELECT id FROM tasks WHERE bot_id = ? AND status = 'running'`, b.id)) throw new HttpError(409, `${b.name} is working on a task. Cancel it first.`);
+  fireBot(b);
+  activity(co.id, `> Let the ${b.name} bot go. Its notes for ${co.name} were deleted.`);
+  return c.json({ ok: true });
+});
+
+/**
+ * Teaching: one sentence from the owner, filed as a skill (every company that hires this bot) or
+ * a note (this company only). The owner chooses; nothing guesses on their behalf.
+ */
+api.post('/companies/:slug/bots/:botId/teach', async (c) => {
+  const { co, b } = botAt(c);
+  const p = await body(c);
+  const text = String(p.text ?? '').trim();
+  if (p.scope === 'everywhere') {
+    const title = String(p.title ?? '').trim() || (text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text);
+    const id = botAction(() => addSkill(b.template_id, title, text.startsWith('-') ? text : `- ${text}`));
+    activity(co.id, `> Taught every ${b.name} bot: ${title}`);
+    return c.json({ kind: 'skill', id });
+  }
+  if (p.scope === 'here') {
+    const id = botAction(() => addOwnerMemory(b, text));
+    activity(co.id, `> ${b.name} will remember that for ${co.name}`);
+    return c.json({ kind: 'memory', id });
+  }
+  throw bad('Choose where it applies: every company, or just this one.');
+});
+
+api.post('/companies/:slug/bots/:botId/template', async (c) => {
+  const { b } = botAt(c);
+  const p = await body(c);
+  const r = botAction(() => saveAsTemplate(b, {
+    name: String(p.name ?? ''),
+    blurb: typeof p.blurb === 'string' ? p.blurb : undefined,
+    skillIds: Array.isArray(p.skillIds) ? p.skillIds.map(Number) : [],
+    confirm: p.confirm === true,
+  }));
+  return c.json(r);
+});
+
+const memoryOf = (c: Context) => {
+  const m = memoryById(idOf(c));
+  if (!m) throw new HttpError(404, 'Note not found');
+  return m;
+};
+api.patch('/memories/:id', async (c) => {
+  const m = memoryOf(c);
+  const p = await body(c);
+  botAction(() => editMemory(m, p));
+  return c.json({ ok: true });
+});
+api.delete('/memories/:id', (c) => {
+  forgetMemory(memoryOf(c));
   return c.json({ ok: true });
 });
 

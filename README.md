@@ -33,6 +33,7 @@ Requirements: Node 22.13+ (it uses the built-in `node:sqlite`).
 | Area | How it works |
 | --- | --- |
 | **Setup** | Idea → name, tagline, mission → market research (live web search) → roadmap + first 4–6 tasks → landing page → deploy → launch post drafted for X → welcome email |
+| **Bots** | The agents are a named team: Engineer, Research, Marketing, Outreach, Support and Ops. Each bot has **skills** (how it does the job, shared by every company that hires it), a **notebook** per company (facts it learned there, kept only after you review them, never shown to another company), and optional **routines** that add tasks on a schedule. Teach a bot from its profile and choose whether the rule is for every company or just this one. The **Bot library** holds the templates: hire one into a company, save a bot as your own template, or export and import one as a file. A template never carries memory. |
 | **Tasks** | Each task runs a tool-using agent loop (engineering, research, marketing, outreach, support, ops). Every step is logged, and you can open any task to see what it did and why. |
 | **Auto Mode** | Works the queue during the day, one task at a time, with a gap between tasks. |
 | **Night Task** | During your night window, the CEO agent plans the next tasks and the team works through them. |

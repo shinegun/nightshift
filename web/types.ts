@@ -5,6 +5,8 @@ export type TaskStatus = 'todo' | 'running' | 'done' | 'failed' | 'cancelled' | 
 export interface OwnerRequest {
   id: number; title: string; why: string; steps: string; unblocks: string;
   status: 'open' | 'done' | 'dismissed'; blocked_task_id: number | null; created_at: string;
+  /** The bot whose task asked, when there was one. */
+  bot_name?: string | null; bot_color?: BotColor | null;
 }
 export type Integration = 'email' | 'vercel' | 'stripe' | 'x' | 'meta';
 export type HealthKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github';
@@ -27,6 +29,7 @@ export interface Task {
   id: number; company_id: number; title: string; description: string; type: TaskType; status: TaskStatus;
   priority: number; position: number | null; source: string; result: string | null; error: string | null; steps: number; cost_usd: number;
   created_at: string; started_at: string | null; finished_at: string | null;
+  bot_id?: number | null; from_bot_id?: number | null;
 }
 
 export interface TaskLog { id: number; ts: string; kind: string; content: string }
@@ -89,7 +92,67 @@ export interface DashboardData {
   running: boolean;
   spendTotal: number;
   night: boolean;
+  bots: BotSummary[];
+  handoffs: Handoff[];
+  notesToReview: NoteToReview[];
 }
+
+// ── Bots ──
+
+export type BotColor = 'moon' | 'blue' | 'green' | 'coral' | 'amber' | 'violet' | 'teal' | 'pink';
+export type BotState = 'working' | 'waiting' | 'idle' | 'paused';
+
+export interface BotSummary {
+  id: number; name: string; color: BotColor; status: 'active' | 'paused';
+  template: { id: number; key: string; name: string; blurb: string; builtin: boolean };
+  state: BotState;
+  now: { id: number; title: string } | null;
+  next: { id: number; title: string } | null;
+  queued: number; waitingOnYou: number; notesToReview: number;
+  routines: { id: number; title: string; when: string }[];
+  lastDone: { id: number; title: string; finished_at: string } | null;
+}
+
+export interface Handoff { id: number; title: string; status: TaskStatus; from_name: string; to_name: string | null; created_at: string }
+
+export interface NoteToReview {
+  id: number; bot_id: number; bot_name: string; bot_color: BotColor; content: string; source_task_id: number | null; created_at: string;
+}
+
+export interface BotMemory {
+  id: number; content: string; status: 'proposed' | 'active'; source: 'task' | 'owner';
+  source_task_id: number | null; created_at: string; updated_at: string;
+}
+
+export interface Skill { id: number; title: string; body: string }
+export interface Need { key: HealthKey; label: string; state?: Health['state']; message?: string }
+
+export interface BotProfile {
+  bot: BotSummary;
+  template: {
+    id: number; key: string; name: string; blurb: string; role: string; builtin: boolean; version: number;
+    taskTypes: TaskType[]; usedIn: { slug: string; name: string }[];
+  };
+  skills: Skill[];
+  routines: { id: number; title: string; description: string; when: string; on: boolean }[];
+  needs: Need[];
+  memory: BotMemory[];
+  memoryBudget: { used: number; max: number };
+  tasks: { id: number; title: string; type: TaskType; status: TaskStatus; source: string; created_at: string; finished_at: string | null; from_name: string | null }[];
+  handedOff: { id: number; title: string; status: TaskStatus; created_at: string; to_name: string | null }[];
+}
+
+export interface Template {
+  id: number; key: string; name: string; blurb: string; role: string; color: BotColor; builtin: boolean; version: number;
+  taskTypes: TaskType[];
+  needs: Need[];
+  skills: Skill[];
+  routines: { id: number; title: string; description: string; when: string; defaultOn: boolean }[];
+  usedIn: { slug: string; name: string; botId: number }[];
+  hiredHere: boolean;
+}
+
+export interface LibraryData { templates: Template[]; companies: { id: number; slug: string; name: string }[] }
 
 /** Someone who can sign in. The password hash never leaves the server. */
 export interface PublicUser {
@@ -108,7 +171,7 @@ export interface AppState {
 
 export interface SettingsPayload { values: Record<string, string>; secrets: Record<string, Secret>; health: Record<HealthKey, Health> }
 
-export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'blocked';
+export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'memory' | 'blocked';
 /** One thing waiting on the owner. The dashboard and the morning brief read the same list. */
 export interface Decision { kind: DecisionKind; id: number | null; title: string; action: string }
 

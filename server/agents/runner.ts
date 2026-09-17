@@ -5,6 +5,7 @@ import { chat, LLMError, type Msg } from '../llm.ts';
 import { snapshot } from '../sites.ts';
 import { errMsg, stripToolMarkup, truncate } from '../util.ts';
 import { agentSystemPrompt } from './prompts.ts';
+import { botById, botForType } from '../bots.ts';
 import { humanize } from '../humanizer.ts';
 import { runTool, toolsForTask, type ToolCtx } from './tools.ts';
 
@@ -69,10 +70,14 @@ export async function runTask(taskId: number): Promise<Task | undefined> {
   activity(company.id, resumed.length ? `> Resuming at step ${doneSteps + 1}: ${task.title}` : `> Working on: ${task.title}`);
   emit('tasks', company.id);
 
-  const ctx: ToolCtx = { company, taskId, counters: {}, siteChanged: false };
-  const tools = toolsForTask(task.type, company);
+  // The task's own bot, or whichever bot now takes its type (the one it had may have been let go).
+  // With none, it still runs from the built-in role, just without a notebook.
+  const bot = (task.bot_id ? botById(task.bot_id) : undefined) ?? botForType(company.id, task.type);
+  if (bot && bot.id !== task.bot_id) run('UPDATE tasks SET bot_id = ? WHERE id = ?', bot.id, taskId);
+  const ctx: ToolCtx = { company, taskId, counters: {}, siteChanged: false, botId: bot?.id };
+  const tools = toolsForTask(task.type, company, Boolean(bot));
   const messages: Msg[] = resumed.length ? resumed : [
-    { role: 'system', content: agentSystemPrompt(company, task.type) },
+    { role: 'system', content: agentSystemPrompt(company, task.type, bot) },
     { role: 'user', content: `Task #${task.id} (${task.type}, priority ${task.priority}): ${task.title}\n\n${task.description || '(no further description)'}` },
   ];
   const maxSteps = Math.max(3, num('agent_max_steps'));

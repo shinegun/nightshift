@@ -12,6 +12,7 @@ import { queueAd, queueCommit, queueEmail, queueTweet } from '../actions.ts';
 import { status as gitStatus } from '../git.ts';
 import { deleteSiteFile, listFiles, readSiteFile, writeSiteFile } from '../sites.ts';
 import { truncate } from '../util.ts';
+import { proposeMemory } from '../bots.ts';
 
 export interface ToolCtx {
   company: Company;
@@ -21,6 +22,7 @@ export interface ToolCtx {
   limits?: Record<string, number>; // per-context overrides of Tool.limit
   rejected?: Map<string, number>; // humanizer bounces per item
   blockedBy?: number; // request id this task is now waiting on
+  botId?: number; // the bot doing this work; its notes and handoffs are filed under it
 }
 
 interface Tool {
@@ -83,12 +85,19 @@ function queuePosition(companyId: number, priority: number) {
   return (before + todo[firstOther].position) / 2;
 }
 
-export function insertTask(c: Company, t: { title: string; description?: string; type?: string; priority?: number; source: string }) {
+export function insertTask(c: Company, t: {
+  title: string; description?: string; type?: string; priority?: number; source: string;
+  /** Who does it. Left out, the database picks the bot for the task type. */
+  botId?: number;
+  /** The bot that asked for it, when this is one bot handing work to another. */
+  fromBotId?: number;
+}) {
   const type = TASK_TYPES.includes(t.type as TaskType) ? t.type : 'feature';
   const priority = [1, 2, 3].includes(Number(t.priority)) ? Number(t.priority) : 2;
   const r = run(
-    'INSERT INTO tasks (company_id, title, description, type, priority, position, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    c.id, String(t.title).slice(0, 160), String(t.description ?? ''), type, priority, queuePosition(c.id, priority), t.source, now(),
+    'INSERT INTO tasks (company_id, title, description, type, priority, position, source, bot_id, from_bot_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    c.id, String(t.title).slice(0, 160), String(t.description ?? ''), type, priority, queuePosition(c.id, priority), t.source,
+    t.botId ?? null, t.fromBotId ?? null, now(),
   );
   emit('tasks', c.id);
   return r.id;
@@ -223,10 +232,25 @@ const TOOLS: Record<string, Tool> = {
       priority: { type: 'integer', enum: [1, 2, 3], description: '1 = high, 2 = normal, 3 = low' },
     },
     required: ['title', 'description', 'type'], limit: 2,
-    run: (a, { company }) => {
+    run: (a, ctx) => {
+      const { company } = ctx;
       const open = Number(Object.values(get(`SELECT COUNT(*) AS n FROM tasks WHERE company_id = ? AND status = 'todo'`, company.id) ?? { n: 0 })[0]);
       if (open >= 25) return 'Not created: the queue already has 25 open tasks.';
-      return `Created task #${insertTask(company, { ...a, source: 'agent' })}.`;
+      const id = insertTask(company, { title: a.title, description: a.description, type: a.type, priority: a.priority, source: 'agent', fromBotId: ctx.botId });
+      const to = get<{ name: string }>('SELECT b.name FROM tasks t JOIN bots b ON b.id = t.bot_id WHERE t.id = ?', id);
+      return `Created task #${id}${to ? ` for the ${to.name} bot` : ''}.`;
+    },
+  },
+  remember: {
+    description: 'Save one durable fact about this company to your notebook, for later tasks. The owner reviews it before it is used.',
+    params: { note: str('One fact, in a sentence or two (under 500 characters)') },
+    required: ['note'], limit: 3,
+    run: ({ note }, ctx) => {
+      if (!ctx.botId) return 'You have no notebook here.';
+      const r = proposeMemory({ id: ctx.botId, company_id: ctx.company.id }, String(note ?? ''), ctx.taskId);
+      return r.duplicate
+        ? 'You already have that note. Nothing saved.'
+        : 'Saved for the owner to review. It becomes part of your memory once they keep it.';
     },
   },
   list_tasks: {
@@ -393,7 +417,8 @@ export function toolsFor(names: string[], c: Company): ToolDef[] {
   return [...new Set(names)].filter((n) => TOOLS[n] && (!NEEDS[n] || status[NEEDS[n]])).map(toDef);
 }
 
-export const toolsForTask = (type: TaskType, c: Company) => toolsFor([...BY_TYPE[type], ...COMMON], c);
+export const toolsForTask = (type: TaskType, c: Company, hasNotebook = false) =>
+  toolsFor([...BY_TYPE[type], ...COMMON, ...(hasNotebook ? ['remember'] : [])], c);
 
 export async function runTool(name: string, args: unknown, ctx: ToolCtx): Promise<string> {
   const tool = TOOLS[name];

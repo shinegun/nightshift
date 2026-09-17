@@ -5,6 +5,7 @@ import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo,
 import { AnimatePresence, EASE, Rolling, Row, SPRING, motion } from './motion.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
+import { noteRows } from './Bots.tsx';
 
 // ── Needs you ──
 
@@ -25,6 +26,7 @@ export function needsYouCount(d: DashboardData): number {
   return (d.decisions ?? []).filter((x) => x.kind === 'budget').length
     + (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed').length
     + (d.requests ?? []).length
+    + (d.notesToReview ?? []).length
     + d.tweets.filter((t) => t.status === 'pending_approval').length
     + d.emails.filter((e) => e.status === 'pending_approval').length
     + d.ads.filter((a) => a.status === 'paused').length
@@ -42,6 +44,9 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const [answering, setAnswering] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const notes = d.notesToReview ?? [];
   const commits = (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed');
   // The two decisions with nothing here to press: a spent budget is fixed in Settings, and a
   // blocked task is unblocked by answering the request that blocked it. They used to appear only
@@ -49,7 +54,7 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const budget = (d.decisions ?? []).filter((x) => x.kind === 'budget');
   const blocked = (d.decisions ?? []).find((x) => x.kind === 'blocked');
   if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length
-    && !budget.length && !blocked) return null;
+    && !budget.length && !blocked && !notes.length) return null;
   const act = (key: string, path: string, msg: string) => run(key, async () => { await post(path); await load(); }, msg);
 
   const rows: ReactNode[] = [
@@ -80,7 +85,11 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
     ...requests.map((r) => (
       <Row key={`r${r.id}`} className="list-item request">
         <div className="grow">
-          <div className="task-title"><span className="badge warn">Your turn</span><strong>{r.title}</strong></div>
+          <div className="task-title">
+            <span className="badge warn">Your turn</span>
+            {r.bot_name && <span className="badge">{r.bot_name} asks</span>}
+            <strong>{r.title}</strong>
+          </div>
           {r.why && <p className="muted small">{r.why}</p>}
           {/* The steps are a whole procedure. Folded, so five open requests are still a list
               you can scan rather than five essays. */}
@@ -112,6 +121,7 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
         </div>
       </Row>
     )),
+    ...noteRows(d, (key, fn, msg) => void run(key, async () => { await fn(); await load(); }, msg), busy, editingNote, setEditingNote, noteDraft, setNoteDraft),
     ...tweets.map((t) => (
       <Row key={`t${t.id}`} className="list-item">
         <div className="grow"><span className="badge">X post</span> {t.text}</div>

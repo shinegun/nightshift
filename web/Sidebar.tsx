@@ -15,6 +15,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { AppState } from './types.ts';
 import { usd } from './lib.tsx';
 import { EASE, motion } from './motion.tsx';
+import { STATE_LABEL, StateDot, useTeam } from './Bots.tsx';
 
 /**
  * How many things are waiting on you, published by the dashboard.
@@ -54,6 +55,7 @@ const ICONS = {
   site: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM2 8h12M8 2c1.6 1.7 2.4 3.7 2.4 6S9.6 12.3 8 14c-1.6-1.7-2.4-3.7-2.4-6S6.4 3.7 8 2Z',
   numbers: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   companies: 'M2.5 6.5 8 2.5l5.5 4v7h-11v-7ZM6.5 13.5v-4h3v4',
+  library: 'M3 2.5h3v11H3zM7 2.5h3v11H7zM11 3l2.6-.6 1.9 10.6-2.6.5z',
   settings: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM13 8a5 5 0 0 0-.1-1l1.3-1-1.5-2.6-1.6.6a5 5 0 0 0-1.7-1L9.2 1.4H6.8L6.6 3a5 5 0 0 0-1.7 1l-1.6-.6L1.8 6l1.3 1a5 5 0 0 0 0 2l-1.3 1 1.5 2.6 1.6-.6a5 5 0 0 0 1.7 1l.2 1.6h2.4l.2-1.6a5 5 0 0 0 1.7-1l1.6.6 1.5-2.6-1.3-1c.06-.33.1-.66.1-1Z',
 };
 
@@ -84,8 +86,11 @@ export function Sidebar({ state, route, page, over }: {
 }) {
   const slug = page === 'dashboard' ? route[1] : '';
   const current = state?.companies.find((c) => c.slug === slug);
-  const view = VIEWS.some((v) => v.key === route[2]) ? route[2] : 'today';
+  // A bot's profile lives under Work, so Work stays lit while you are on one.
+  const view = route[2] === 'bot' ? 'work' : VIEWS.some((v) => v.key === route[2]) ? route[2] : 'today';
   const waiting = useNeedsYou(page === 'dashboard');
+  const team = useTeam(page === 'dashboard');
+  const botId = route[2] === 'bot' ? Number(route[3]) : 0;
   const [open, setOpen] = useState(false);
   useEffect(() => { setOpen(false); }, [slug, page]);
 
@@ -126,7 +131,22 @@ export function Sidebar({ state, route, page, over }: {
         )}
       </nav>
 
+      {current && team && (
+        <div className="side-team">
+          <span className="side-heading">Team</span>
+          {team.map((b) => (
+            <a key={b.id} className={`side-bot ${b.id === botId ? 'on' : ''}`} href={`#/c/${encodeURIComponent(slug)}/bot/${b.id}`}
+              title={`${b.name}: ${STATE_LABEL[b.state]}`}>
+              <StateDot state={b.state} /><span className="side-label">{b.name}</span>
+              {b.state === 'waiting' && <span className="muted small">needs you</span>}
+            </a>
+          ))}
+          <a className="side-bot add" href={`#/library/${encodeURIComponent(slug)}`}>+ Hire a bot</a>
+        </div>
+      )}
+
       <div className="side-foot">
+        <Item icon="library" label="Bot library" href="#/library" active={page === 'library'} />
         <Item icon="settings" label="Settings" href="#/settings" active={page === 'settings'} />
         {state && <Spend state={state} over={Boolean(over)} />}
       </div>
