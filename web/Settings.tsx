@@ -4,12 +4,13 @@ import type { HealthKey, SettingsPayload } from './types.ts';
 import { Boundary, HealthNote, toast, useAction, usd } from './lib.tsx';
 import { OpexPanel } from './Opex.tsx';
 import { PeoplePanel } from './People.tsx';
+import { SlackPanel } from './SlackPanel.tsx';
 
 interface Field {
   key: string; label: string; secret?: boolean; help?: string; type?: 'text' | 'number' | 'email' | 'url';
   options?: [string, string][]; placeholder?: string; showIf?: (v: Record<string, string>) => boolean; datalist?: boolean;
 }
-interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[]; panel?: 'opex' | 'people' }
+interface Section { id: string; title: string; intro?: string; test?: string; tests?: [string, string][]; fields: Field[]; panel?: 'opex' | 'people' | 'slack' }
 
 const BOOL: [string, string][] = [['true', 'Ask me first'], ['false', 'Let agents act on their own']];
 const HOURS = Array.from({ length: 24 }, (_, h) => [String(h), `${String(h).padStart(2, '0')}:00`] as [string, string]);
@@ -84,6 +85,15 @@ const SECTIONS: Section[] = [
       { key: 'github_token', label: 'GitHub token', secret: true, help: 'A fine-grained token with Repository permissions \u2192 Actions: read (and Metadata: read, which GitHub adds for you). Create one at github.com/settings/personal-access-tokens. A classic token needs the repo scope.' },
     ],
   },
+  {
+    id: 'slack', title: 'Slack', test: 'slack', panel: 'slack',
+    intro: 'Your team\u2019s own Slack. New messages in a company\u2019s feedback channel become Support tasks; its team channel gets decisions (with buttons that act on them), handoffs, failures and the morning report; and anyone allowed can talk to a bot by mentioning the app. Nightshift connects out to Slack (Socket Mode), so nothing here needs to be reachable from the internet.',
+    fields: [
+      { key: 'slack_bot_token', label: 'Bot token', secret: true, help: 'OAuth & Permissions → Bot User OAuth Token (xoxb-…).' },
+      { key: 'slack_app_token', label: 'App-level token', secret: true, help: 'Basic Information → App-Level Tokens, with connections:write (xapp-…).' },
+      { key: 'slack_allowed_users', label: 'Who can act from Slack (optional)', placeholder: 'U0123ABCD, U0456EFGH', help: 'Slack member IDs (profile → ⋯ → Copy member ID). Empty means anyone in the workspace can press buttons and talk to the bots.' },
+    ],
+  },
   { id: 'stripe', title: 'Stripe', test: 'stripe', intro: 'Agents create products and payment links; completed checkouts show up as revenue.', fields: [{ key: 'stripe_secret_key', label: 'Secret key', secret: true, help: 'Use a restricted key or sk_test_… while trying it out.' }] },
   {
     id: 'x', title: 'X (Twitter)', test: 'x',
@@ -140,6 +150,7 @@ const SECTIONS: Section[] = [
       { key: 'approve_emails', label: 'Emails to other people', options: BOOL },
       { key: 'approve_ads', label: 'Starting ad spend', options: BOOL },
       { key: 'approve_git', label: 'Pushing to git', options: BOOL },
+      { key: 'approve_slack', label: 'Bot replies in Slack threads', options: BOOL },
     ],
   },
 ];
@@ -153,6 +164,7 @@ const SECTION_HEALTH: Record<string, [HealthKey, string][]> = {
   stripe: [['stripe', 'Stripe']],
   x: [['x', 'X']],
   meta: [['meta', 'Meta Ads']],
+  slack: [['slack', 'Slack']],
 };
 
 interface Usage { days: { day: string; cost: number; calls: number; tokens: number }[]; byCompany: { name: string; cost: number }[] }
@@ -220,6 +232,7 @@ export function Settings({ onSaved }: { onSaved: () => void }) {
           {(SECTION_HEALTH[s.id] ?? []).map(([k, label]) => <HealthNote key={k} h={data.health[k]} label={label} link={false} showReady />)}
           {s.panel === 'opex' && <Boundary name="OpEx"><OpexPanel /></Boundary>}
           {s.panel === 'people' && <Boundary name="People"><PeoplePanel /></Boundary>}
+          {s.panel === 'slack' && <Boundary name="Slack"><SlackPanel /></Boundary>}
           {(s.tests ?? (s.test ? [[s.test, '']] : [])).map(([what]) => results[what] && (
             <p key={what} className={results[what].ok ? 'ok small' : 'error small'}>{results[what].ok ? '✓ ' : '✗ '}{results[what].text}</p>
           ))}

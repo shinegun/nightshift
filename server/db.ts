@@ -445,6 +445,42 @@ BEGIN
 END;
 `);
 
+// ── Slack ──────────────────────────────────────────────────────────────────
+
+db.exec(`
+-- Every Slack message Nightshift posted or acted on, keyed by what it is about ("task:12",
+-- "request:3"). The key is what keeps a notice from being posted twice, and what lets a button
+-- press or a resolved approval find the message to update.
+CREATE TABLE IF NOT EXISTS slack_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  ref TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT '',
+  ts TEXT NOT NULL DEFAULT '',
+  value TEXT NOT NULL DEFAULT '',
+  resolved INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE (company_id, kind, ref)
+);
+
+-- A bot's reply in a Slack thread, when replies wait for approval.
+CREATE TABLE IF NOT EXISTS slack_replies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  bot_id INTEGER REFERENCES bots(id) ON DELETE SET NULL,
+  task_id INTEGER,
+  channel TEXT NOT NULL,
+  thread_ts TEXT NOT NULL,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending_approval',
+  error TEXT,
+  created_at TEXT NOT NULL,
+  posted_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_slack_replies_company ON slack_replies(company_id, status);
+`);
+
 // ── Row types ──────────────────────────────────────────────────────────────
 
 export interface Company {

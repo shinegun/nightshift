@@ -27,6 +27,7 @@ export function needsYouCount(d: DashboardData): number {
     + (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed').length
     + (d.requests ?? []).length
     + (d.notesToReview ?? []).length
+    + (d.slackReplies ?? []).length
     + d.tweets.filter((t) => t.status === 'pending_approval').length
     + d.emails.filter((e) => e.status === 'pending_approval').length
     + d.ads.filter((a) => a.status === 'paused').length
@@ -47,6 +48,7 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const notes = d.notesToReview ?? [];
+  const slackReplies = d.slackReplies ?? [];
   const commits = (d.commits ?? []).filter((g) => g.status === 'pending_approval' || g.status === 'failed');
   // The two decisions with nothing here to press: a spent budget is fixed in Settings, and a
   // blocked task is unblocked by answering the request that blocked it. They used to appear only
@@ -54,7 +56,7 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
   const budget = (d.decisions ?? []).filter((x) => x.kind === 'budget');
   const blocked = (d.decisions ?? []).find((x) => x.kind === 'blocked');
   if (!emails.length && !tweets.length && !ads.length && !failed && !requests.length && !commits.length
-    && !budget.length && !blocked && !notes.length) return null;
+    && !budget.length && !blocked && !notes.length && !slackReplies.length) return null;
   const act = (key: string, path: string, msg: string) => run(key, async () => { await post(path); await load(); }, msg);
 
   const rows: ReactNode[] = [
@@ -122,6 +124,21 @@ export function ApprovalsCard({ d, load, setModal }: PanelProps) {
       </Row>
     )),
     ...noteRows(d, (key, fn, msg) => void run(key, async () => { await fn(); await load(); }, msg), busy, editingNote, setEditingNote, noteDraft, setNoteDraft),
+    ...slackReplies.map((r) => (
+      <Row key={`s${r.id}`} className="list-item request">
+        <div className="grow">
+          <div className="task-title"><span className="badge">Slack reply</span>{r.bot_name && <span className="badge">{r.bot_name}</span>}</div>
+          <pre className="email-body">{r.text}</pre>
+          {r.error && <p className="error small">{r.error}</p>}
+          <div className="row-actions">
+            <button className="btn small primary" disabled={busy !== null} onClick={() => act(`s${r.id}`, `/slack-replies/${r.id}/approve`, 'Posted in Slack')}>
+              {r.status === 'failed' ? 'Try again' : 'Post in Slack'}
+            </button>
+            <button className="btn small ghost" disabled={busy !== null} onClick={() => act(`sr${r.id}`, `/slack-replies/${r.id}/reject`, 'Discarded')}>Discard</button>
+          </div>
+        </div>
+      </Row>
+    )),
     ...tweets.map((t) => (
       <Row key={`t${t.id}`} className="list-item">
         <div className="grow"><span className="badge">X post</span> {t.text}</div>

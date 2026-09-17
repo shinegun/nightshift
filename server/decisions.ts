@@ -14,7 +14,7 @@ import { all, get, type Company } from './db.ts';
 import { num } from './settings.ts';
 import { budgetStop, spentThisMonth, spentToday } from './llm.ts';
 
-export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'memory' | 'blocked';
+export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'memory' | 'slack' | 'blocked';
 
 export interface Decision {
   kind: DecisionKind;
@@ -30,7 +30,7 @@ export interface Decision {
  * Ordered by what stops the most work. A spent budget halts everything, so it leads; a blocked
  * task is last because it is usually downstream of a request that is already listed.
  */
-const ORDER: DecisionKind[] = ['budget', 'commit', 'request', 'email', 'post', 'ad', 'memory', 'blocked'];
+const ORDER: DecisionKind[] = ['budget', 'commit', 'request', 'email', 'post', 'ad', 'slack', 'memory', 'blocked'];
 
 const count = (sql: string, id: number) => Number(get<{ n: number }>(sql, id)?.n ?? 0);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -85,6 +85,9 @@ export function decisions(c: Company): Decision[] {
 
   const ads = count(`SELECT COUNT(*) AS n FROM ad_campaigns WHERE company_id = ? AND status = 'paused'`, c.id);
   if (ads) out.push({ kind: 'ad', id: null, title: `Start or drop ${plural(ads, 'paused ad campaign')}`, action: 'Ads' });
+
+  const replies = count(`SELECT COUNT(*) AS n FROM slack_replies WHERE company_id = ? AND status = 'pending_approval'`, c.id);
+  if (replies) out.push({ kind: 'slack', id: null, title: `Approve or discard ${plural(replies, 'Slack reply', 'Slack replies')}`, action: 'Needs you' });
 
   // A bot's note does nothing until it is kept, so an unreviewed one is a decision like any draft.
   const notes = count(`SELECT COUNT(*) AS n FROM bot_memories WHERE company_id = ? AND status = 'proposed'`, c.id);

@@ -14,6 +14,7 @@ import { deleteSiteFile, listFiles, readSiteFile, writeSiteFile } from '../sites
 import { truncate } from '../util.ts';
 import { proposeMemory } from '../bots.ts';
 import { describeReport, openPage } from '../browser.ts';
+import { queueSlackReply } from '../slack.ts';
 
 export interface ToolCtx {
   company: Company;
@@ -358,6 +359,18 @@ const TOOLS: Record<string, Tool> = {
     },
   },
 
+  reply_in_slack: {
+    description: 'Answer the teammate who posted this task\'s message in Slack, in that message\'s thread. Only works for tasks that came from Slack.',
+    params: { text: str('The reply, in plain text (Slack formatting: *bold*)') },
+    required: ['text'], limit: 3,
+    run: async ({ text }, ctx) => {
+      const bounced = gateWriting(ctx, 'reply_in_slack', String(text), 'reply_in_slack');
+      if (bounced) return bounced;
+      const r = await queueSlackReply(ctx.company, ctx.botId, ctx.taskId, String(text ?? ''));
+      return r.status === 'posted' ? 'Replied in the Slack thread.' : 'Reply drafted and waiting for owner approval.';
+    },
+  },
+
   // ── growth ──
   post_to_x: {
     description: 'Post to the company X (Twitter) account. Max 280 characters.',
@@ -417,7 +430,7 @@ const BY_TYPE: Record<TaskType, string[]> = {
   research: ['web_search', 'fetch_url'],
   marketing: ['web_search', 'fetch_url', 'post_to_x', 'create_meta_ad', ...SITE],
   outreach: ['web_search', 'fetch_url', 'send_email', 'read_inbox'],
-  support: ['read_inbox', 'reply_email', 'send_email', 'list_files', 'read_file'],
+  support: ['read_inbox', 'reply_email', 'send_email', 'reply_in_slack', 'list_files', 'read_file'],
   ops: ['create_payment_link', 'web_search', 'fetch_url', 'open_page', ...SITE],
 };
 

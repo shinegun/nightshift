@@ -9,7 +9,7 @@ export interface OwnerRequest {
   bot_name?: string | null; bot_color?: BotColor | null;
 }
 export type Integration = 'email' | 'vercel' | 'stripe' | 'x' | 'meta';
-export type HealthKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github';
+export type HealthKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github' | 'slack';
 /** ready = usable · off = not set up / misconfigured · error = set up, but the last real attempt failed */
 export interface Health { state: 'ready' | 'off' | 'error'; message: string; at?: string }
 export interface Issue { key: string; label: string; message: string; at: string }
@@ -95,6 +95,15 @@ export interface DashboardData {
   bots: BotSummary[];
   handoffs: Handoff[];
   notesToReview: NoteToReview[];
+  slackReplies: SlackReply[];
+}
+
+export interface SlackReply { id: number; bot_name: string | null; text: string; status: 'pending_approval' | 'failed'; error: string | null; created_at: string }
+
+export interface SlackStatus {
+  connected: boolean; since: string; team: string;
+  companies: { slug: string; name: string; team: string; feedback: string }[];
+  manifest: unknown;
 }
 
 // ── Bots ──
@@ -171,7 +180,7 @@ export interface AppState {
 
 export interface SettingsPayload { values: Record<string, string>; secrets: Record<string, Secret>; health: Record<HealthKey, Health> }
 
-export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'memory' | 'blocked';
+export type DecisionKind = 'budget' | 'commit' | 'email' | 'post' | 'ad' | 'request' | 'memory' | 'slack' | 'blocked';
 /** One thing waiting on the owner. The dashboard and the morning brief read the same list. */
 export interface Decision { kind: DecisionKind; id: number | null; title: string; action: string }
 

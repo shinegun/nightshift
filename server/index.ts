@@ -35,6 +35,9 @@ import { companyMetrics, insertTask, integrationStatus, saveDocument } from './a
 import { isNight, startScheduler } from './scheduler.ts';
 import { clearIssue, clearIssuesForSettings, dismissIssue, integrationHealth, openIssues, reportIssue, type IntegrationKey } from './health.ts';
 import { decisions } from './decisions.ts';
+import { dismissRequest, markRequestDone, requestById } from './requests.ts';
+import { pendingSlackReplies, postSlackReply, rejectSlackReply, slackStatus, startSlackBridge } from './slack.ts';
+import { SLACK_MANIFEST, restartSocket, testSlack } from './integrations/slack.ts';
 import { deleteImages, readImage, saveImage } from './uploads.ts';
 import { status as gitStatus } from './git.ts';
 import { errMsg, localNow } from './util.ts';
@@ -263,6 +266,7 @@ api.get('/companies/:slug', (c) => {
     bots: teamSummary(co),
     handoffs: recentHandoffs(co),
     notesToReview: notesToReview(co),
+    slackReplies: pendingSlackReplies(co).map(({ id, bot_name, text, status, error, created_at }) => ({ id, bot_name, text, status, error, created_at })),
     // The same list the morning brief is built from, so the two can never disagree.
     decisions: decisions(co),
     commits: all<Commit>('SELECT * FROM commits WHERE company_id = ? ORDER BY id DESC LIMIT 20', co.id),
@@ -428,8 +432,8 @@ api.delete('/tasks/:id', (c) => {
 
 // Requests: work only the owner can do
 
-const requestById = (c: Context) => {
-  const r = get<Request>('SELECT * FROM requests WHERE id = ?', idOf(c));
+const requestOf = (c: Context) => {
+  const r = requestById(idOf(c));
   if (!r) throw new HttpError(404, 'Request not found');
   if (r.status !== 'open') throw bad(`This request is already ${r.status}.`);
   return r;
@@ -437,35 +441,16 @@ const requestById = (c: Context) => {
 
 /** Owner did it: close the request and put the paused task back in the queue with their note. */
 api.post('/requests/:id/done', async (c) => {
-  const r = requestById(c);
-  const answer = String((await body(c)).answer ?? '').trim().slice(0, 2000);
-  run(`UPDATE requests SET status = 'done', answer = ?, done_at = ? WHERE id = ?`, answer, now(), r.id);
-  activity(r.company_id, `> You handled: ${r.title}`);
-  const task = r.blocked_task_id ? get<Task>(`SELECT * FROM tasks WHERE id = ? AND status = 'blocked'`, r.blocked_task_id) : undefined;
-  if (task) {
-    const note = `\n\nOwner note (${new Date().toISOString().slice(0, 10)}) on "${r.title}": ${answer || 'done'}`;
-    run(`UPDATE tasks SET status = 'todo', description = ?, error = NULL, finished_at = NULL WHERE id = ?`, task.description + note, task.id);
-    activity(r.company_id, `> Back in the queue: ${task.title}`);
-  }
-  emit('requests', r.company_id);
-  emit('tasks', r.company_id);
-  return c.json({ ok: true, requeued: task?.id ?? null });
+  const r = requestOf(c);
+  const answer = String((await body(c)).answer ?? '');
+  return c.json({ ok: true, requeued: markRequestDone(r, answer) });
 });
 
 /** Owner won't do it: close it and let the task run again so the agent can find another way or explain. */
 api.post('/requests/:id/dismiss', (c) => {
-  const r = requestById(c);
-  run(`UPDATE requests SET status = 'dismissed', done_at = ? WHERE id = ?`, now(), r.id);
-  const task = r.blocked_task_id ? get<Task>(`SELECT * FROM tasks WHERE id = ? AND status = 'blocked'`, r.blocked_task_id) : undefined;
-  if (task) {
-    const note = `\n\nOwner note: they will not do "${r.title}". Find another way or explain in your summary why this task can't be finished without it.`;
-    run(`UPDATE tasks SET status = 'todo', description = ?, finished_at = NULL WHERE id = ?`, task.description + note, task.id);
-  }
-  emit('requests', r.company_id);
-  emit('tasks', r.company_id);
+  dismissRequest(requestOf(c));
   return c.json({ ok: true });
 });
-
 
 // Bots — the team at one company, and the library of templates they are hired from.
 
@@ -842,6 +827,12 @@ api.post('/commits/:id/reject', (c) => {
   return c.json({ ok: true });
 });
 
+// Slack — a bot's reply waiting to go into a feedback thread, and the connection itself.
+
+api.post('/slack-replies/:id/approve', async (c) => { await postSlackReply(idOf(c)); return c.json({ ok: true }); });
+api.post('/slack-replies/:id/reject', (c) => { rejectSlackReply(idOf(c)); return c.json({ ok: true }); });
+api.get('/slack', (c) => c.json({ ...slackStatus(), manifest: SLACK_MANIFEST }));
+
 // Meta Ads
 
 api.post('/companies/:slug/ads', async (c) => {
@@ -928,6 +919,7 @@ api.put('/settings', async (c) => {
     emit('company');
   }
   clearIssuesForSettings(Object.keys(patch)); // an edit may have fixed the last failure; the next attempt re-reports if not
+  if (Object.keys(patch).some((k) => k === 'slack_bot_token' || k === 'slack_app_token')) restartSocket();
   emit('settings');
   return c.json(settingsPayload());
 });
@@ -943,12 +935,13 @@ api.post('/settings/test/:what', async (c) => {
       imap: testImap,
       vercel: testVercel,
       github: testGithub,
+      slack: testSlack,
       stripe: () => testStripe(),
       x: () => testX(global),
       meta: () => testMeta(global),
     };
     const TEST_KEYS: Record<string, IntegrationKey> = {
-      llm: 'ai', search: 'search', email: 'email', imap: 'inbox', vercel: 'vercel', stripe: 'stripe', x: 'x', meta: 'meta', github: 'github',
+      llm: 'ai', search: 'search', email: 'email', imap: 'inbox', vercel: 'vercel', stripe: 'stripe', x: 'x', meta: 'meta', github: 'github', slack: 'slack',
     };
     const what = c.req.param('what') ?? '';
     const fn = tests[what];
@@ -1074,5 +1067,6 @@ serve({ fetch: publicApp.fetch, port: PUBLIC_PORT, hostname: PUBLIC_HOST }, () =
   console.log(`  Public endpoint       http://${PUBLIC_HOST}:${PUBLIC_PORT}  (tracker + waitlist + sites — safe to tunnel)`);
 });
 startScheduler();
+startSlackBridge();
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(0));

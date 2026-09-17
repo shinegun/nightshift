@@ -235,6 +235,8 @@ const OVERRIDES: { key: string; label: string; secret?: boolean }[] = [
   { key: 'meta_ad_account_id', label: 'Meta ad account ID' },
   { key: 'meta_page_id', label: 'Meta Page ID' },
   { key: 'stripe_secret_key', label: 'Stripe secret key (own account)', secret: true },
+  { key: 'slack_channel', label: 'Slack team channel ID (updates and talking to bots)' },
+  { key: 'slack_feedback_channel', label: 'Slack feedback channel ID (messages become tasks)' },
   { key: 'writing_voice', label: 'Writing voice (e.g. "warm, a bit playful")' },
   { key: 'writing_spelling', label: 'Spelling: auto, british or american' },
 ];

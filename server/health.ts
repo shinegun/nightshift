@@ -10,14 +10,14 @@ import { errMsg } from './util.ts';
 // provider down, permission denied) are reported here by whatever code hit them and
 // cleared by the next success. Nothing is allowed to fail silently.
 
-export type IntegrationKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github';
+export type IntegrationKey = 'ai' | 'search' | 'email' | 'inbox' | 'vercel' | 'publicUrl' | 'stripe' | 'x' | 'meta' | 'github' | 'slack';
 /** ready = usable · off = not set up / misconfigured · error = set up, but the last real attempt failed */
 export interface Health { state: 'ready' | 'off' | 'error'; message: string; at?: string }
 
-export const INTEGRATIONS: IntegrationKey[] = ['ai', 'search', 'email', 'inbox', 'vercel', 'publicUrl', 'stripe', 'x', 'meta', 'github'];
+export const INTEGRATIONS: IntegrationKey[] = ['ai', 'search', 'email', 'inbox', 'vercel', 'publicUrl', 'stripe', 'x', 'meta', 'github', 'slack'];
 export const HEALTH_LABEL: Record<IntegrationKey, string> = {
   ai: 'AI', search: 'Web search', email: 'Email sending', inbox: 'Inbox', vercel: 'Vercel deploy',
-  publicUrl: 'Visitor tracking', stripe: 'Stripe', x: 'X', meta: 'Meta Ads', github: 'GitHub Actions',
+  publicUrl: 'Visitor tracking', stripe: 'Stripe', x: 'X', meta: 'Meta Ads', github: 'GitHub Actions', slack: 'Slack',
 };
 
 /** Which settings belong to which integration — scopes company overrides and clears stale errors after edits. */
@@ -32,6 +32,7 @@ const OWNED_BY: [RegExp, IntegrationKey[]][] = [
   [/^x_/, ['x']],
   [/^(meta_|ads_)/, ['meta']],
   [/^github_/, ['github']],
+  [/^slack_(bot|app)_token$/, ['slack']],
 ];
 const owners = (settingKey: string) => OWNED_BY.filter(([re]) => re.test(settingKey)).flatMap(([, k]) => k);
 
@@ -121,6 +122,15 @@ function staticProblem(key: IntegrationKey, c?: Pick<Company, 'config'>): string
       // Optional: a company whose site folder has no GitHub remote has no CI to watch, and that
       // is not a fault. Only a missing token is, once the owner has asked for this at all.
       return s('github_token') ? null : 'No GitHub token — create a fine-grained token with Actions: read to see whether a site repo\'s CI is passing.';
+    case 'slack': {
+      const bot = s('slack_bot_token'), app = s('slack_app_token');
+      if (!bot && !app) return 'Not connected — create the Slack app from the manifest below and paste its two tokens.';
+      if (!bot) return 'The bot token (xoxb-…) is missing.';
+      if (!app) return 'The app-level token (xapp-…) is missing. Create one under Basic Information → App-Level Tokens with the connections:write scope.';
+      if (!bot.startsWith('xoxb-')) return 'The bot token should start with xoxb- (OAuth & Permissions → Bot User OAuth Token).';
+      if (!app.startsWith('xapp-')) return 'The app-level token should start with xapp-.';
+      return null;
+    }
     case 'publicUrl': {
       const url = s('public_base_url');
       if (!url) return "Public URL is empty — sites deployed to Vercel can't report visits or waitlist signups.";

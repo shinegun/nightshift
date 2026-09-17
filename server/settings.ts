@@ -66,6 +66,11 @@ export const DEFAULTS: Record<string, string> = {
   approve_emails: 'true',
   approve_ads: 'true',
   approve_git: 'true',
+  // Bot replies in a Slack thread. Off by default: the Slack workspace is the team's own.
+  approve_slack: 'false',
+
+  // Slack: who may press buttons and talk to the bots. Empty = anyone in the workspace.
+  slack_allowed_users: '',
 
   // Humanizer: everything agents write should read like a person wrote it
   humanizer: 'true',
@@ -89,6 +94,8 @@ export const SECRET_KEYS = new Set([
   'x_access_secret',
   'x_bearer_token',
   'meta_access_token',
+  'slack_bot_token',
+  'slack_app_token',
 ]);
 
 /** Keys a single company may override (e.g. each company has its own X account). */
@@ -99,6 +106,9 @@ export const COMPANY_KEYS = [
   'writing_voice', 'writing_spelling',
   // What a deploy may put on the public website (globs; see server/publish.ts).
   'publish_include', 'publish_exclude',
+  // Slack channel IDs: where the team talks to the bots and gets updates, and where feedback
+  // arrives. Company-only, like the publish globs.
+  'slack_channel', 'slack_feedback_channel',
 ];
 
 const KNOWN = new Set([...Object.keys(DEFAULTS), ...SECRET_KEYS]);
