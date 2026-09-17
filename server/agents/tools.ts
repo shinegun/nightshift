@@ -13,6 +13,7 @@ import { status as gitStatus } from '../git.ts';
 import { deleteSiteFile, listFiles, readSiteFile, writeSiteFile } from '../sites.ts';
 import { truncate } from '../util.ts';
 import { proposeMemory } from '../bots.ts';
+import { describeReport, openPage } from '../browser.ts';
 
 export interface ToolCtx {
   company: Company;
@@ -118,6 +119,27 @@ const TOOLS: Record<string, Tool> = {
     description: 'Fetch a public web page and return its readable text.',
     params: { url: str('Absolute http(s) URL') }, required: ['url'], limit: 15,
     run: ({ url }) => fetchUrl(String(url)),
+  },
+
+  open_page: {
+    description:
+      'Open one of this company\'s own pages in a real browser (JavaScript runs) and read what a visitor sees, plus any JavaScript errors and failed requests. '
+      + 'Pass a path on the preview site ("/holdings.html") or a URL on the company\'s live site. Read-only: it cannot click, type or submit, '
+      + 'and form posts are blocked. Use fetch_url for other websites.',
+    params: {
+      url: str('A path on the preview site such as /index.html, or a URL on the company\'s live site'),
+      selector: str('Optional CSS selector: return only the text inside the first match'),
+      wait_for: str('Optional CSS selector to wait for (up to 10s) before reading, for content a script adds late'),
+    },
+    required: ['url'], limit: 8,
+    run: async ({ url, selector, wait_for }, { company }) => {
+      const fresh = get<Company>('SELECT * FROM companies WHERE id = ?', company.id) ?? company;
+      const r = await openPage(fresh, String(url ?? ''), {
+        selector: selector ? String(selector) : undefined,
+        waitFor: wait_for ? String(wait_for) : undefined,
+      });
+      return describeReport(r);
+    },
   },
 
   // ── website ──
@@ -390,13 +412,13 @@ const TOOLS: Record<string, Tool> = {
 const COMMON = ['list_tasks', 'create_task', 'ask_owner', 'get_metrics', 'read_document', 'write_document'];
 const SITE = ['list_files', 'read_file', 'write_file', 'delete_file', 'deploy_site', 'git_status', 'commit_changes'];
 const BY_TYPE: Record<TaskType, string[]> = {
-  fix: [...SITE, 'web_search', 'fetch_url', 'create_payment_link'],
-  feature: [...SITE, 'web_search', 'fetch_url', 'create_payment_link'],
+  fix: [...SITE, 'web_search', 'fetch_url', 'open_page', 'create_payment_link'],
+  feature: [...SITE, 'web_search', 'fetch_url', 'open_page', 'create_payment_link'],
   research: ['web_search', 'fetch_url'],
   marketing: ['web_search', 'fetch_url', 'post_to_x', 'create_meta_ad', ...SITE],
   outreach: ['web_search', 'fetch_url', 'send_email', 'read_inbox'],
   support: ['read_inbox', 'reply_email', 'send_email', 'list_files', 'read_file'],
-  ops: ['create_payment_link', 'web_search', 'fetch_url', ...SITE],
+  ops: ['create_payment_link', 'web_search', 'fetch_url', 'open_page', ...SITE],
 };
 
 const NEEDS: Record<string, keyof ReturnType<typeof integrationStatus>> = {
