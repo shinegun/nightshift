@@ -90,6 +90,33 @@ export function useAction() {
   return { busy, run };
 }
 
+// ── Clipboard ──
+
+/**
+ * Copies text, including on a plain-http address. navigator.clipboard only exists in a secure
+ * context (https or localhost), and the dashboard is usually opened over a tailnet IP on http,
+ * where it is simply undefined. The old select-and-copy command still works there.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fall through */ }
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+  area.select();
+  try {
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+  }
+}
+
 // ── Markdown (AI-written, may quote the web — always sanitized) ──
 
 // Raw HTML in agent markdown (e.g. a brief mentioning `<form data-waitlist>`) is shown as text, not rendered.

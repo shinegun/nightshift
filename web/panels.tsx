@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, patch, post } from './api.ts';
 import type { AdCampaign, CiState, DashboardData, DocMeta, GitState, Task, TaskStatus, WorkflowRun } from './types.ts';
-import { Card, Empty, HealthNote, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
+import { Card, Empty, HealthNote, copyText, Markdown, Pill, healthIsQuiet, money, timeAgo, toast, useAction } from './lib.tsx';
 import { AnimatePresence, EASE, Rolling, Row, SPRING, motion } from './motion.tsx';
 import { TaskQueue, TYPE_LABEL } from './TaskQueue.tsx';
 import type { PanelProps } from './Dashboard.tsx';
@@ -639,7 +639,7 @@ export function PaymentsCard({ d, base, load }: PanelProps) {
           {d.paymentLinks.map((p) => (
             <li key={p.id} className="list-item">
               <div className="grow"><strong>{p.name}</strong><div className="muted small">{money(p.amount_cents, p.currency)}</div></div>
-              <button className="btn small ghost" onClick={() => { void navigator.clipboard.writeText(p.url); toast('Link copied', 'success'); }}>Copy link</button>
+              <button className="btn small ghost" onClick={() => void copyText(p.url).then((ok) => toast(ok ? 'Link copied' : "Couldn't copy the link", ok ? 'success' : 'error'))}>Copy link</button>
             </li>
           ))}
         </ul>

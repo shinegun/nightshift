@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.ts';
 import type { SlackStatus } from './types.ts';
-import { timeAgo, toast } from './lib.tsx';
+import { copyText, timeAgo, toast } from './lib.tsx';
 
 export function SlackPanel() {
   const [s, setS] = useState<SlackStatus | null>(null);
@@ -18,12 +18,8 @@ export function SlackPanel() {
   }, []);
   if (!s) return null;
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(s.manifest, null, 2));
-      toast('Manifest copied', 'success');
-    } catch {
-      toast("Couldn't copy. Open the manifest below and copy it by hand.", 'error');
-    }
+    if (await copyText(JSON.stringify(s.manifest, null, 2))) toast('Manifest copied', 'success');
+    else toast("Couldn't copy. Open “Show the manifest” below and copy it by hand.", 'error');
   };
   return (
     <div className="stack slack-panel">
