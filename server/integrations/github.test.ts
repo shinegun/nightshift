@@ -15,7 +15,7 @@ import path from 'node:path';
 
 process.env.NIGHTSHIFT_DATA = mkdtempSync(path.join(tmpdir(), 'nightshift-github-'));
 
-const { parseRepo, cleanLines, failureWindow, describeFailure } = await import('./github.ts');
+const { parseRepo, cleanLines, failureWindow, describeFailure, latestRunPerWorkflow } = await import('./github.ts');
 
 test('a repo is read out of every remote spelling git produces', () => {
   const expected = { owner: 'shinegun', repo: 'safastack' };
@@ -92,4 +92,21 @@ test('a failure reads as one sentence naming the step and the last real line', (
   assert.match(line, /step 4 of 12/);
   assert.match(line, /Unit tests/);
   assert.match(line, /not ok 2/);
+});
+
+test('a 404 names the repository and the token setting that fixes it', async () => {
+  const { setSetting } = await import('../settings.ts');
+  setSetting('github_token', 'github_pat_test');
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'Not Found' }), { status: 404, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+  try {
+    await assert.rejects(latestRunPerWorkflow({ owner: 'shinegun', repo: 'safastack' }), (e: Error & { status?: number }) => {
+      assert.equal(e.status, 404);
+      assert.match(e.message, /can't find shinegun\/safastack/);
+      assert.match(e.message, /Repository access/);
+      return true;
+    });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

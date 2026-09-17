@@ -57,11 +57,16 @@ async function github(path: string) {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
+    // GitHub answers 404, not 403, for a private repository the token isn't allowed to see, so the
+    // message has to name the repository and the one setting that usually fixes it.
+    const repo = path.match(/^\/repos\/([^/]+\/[^/]+)/)?.[1];
     const hint = res.status === 401 || res.status === 403
       ? 'GitHub rejected the token (expired, revoked, or missing the Actions: read permission?)'
-      : res.status === 404
-        ? 'GitHub returned 404 — either the repository does not exist or this token cannot see it'
-        : `GitHub ${res.status}`;
+      : res.status === 404 && repo
+        ? `GitHub can't find ${repo} with this token. If the repository is private, edit the token on github.com (Settings → Developer settings → Fine-grained tokens), add ${repo} under Repository access, and give it Actions: Read`
+        : res.status === 404
+          ? 'GitHub returned 404 — either the repository does not exist or this token cannot see it'
+          : `GitHub ${res.status}`;
     throw Object.assign(new Error(`${hint}: ${body.message ?? ''}`.trim()), { status: res.status });
   }
   return res.json() as Promise<any>;
