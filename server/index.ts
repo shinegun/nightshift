@@ -1056,9 +1056,38 @@ if (PROD) {
   app.get('/', (c) => c.text('Nightshift API is running. In development, open the dashboard at http://localhost:5173'));
 }
 
+// ── Landing page: what the public endpoint shows at its root ───────────────
+// A separate build (vite.landing.config.ts) with its own files, so nothing of the dashboard is
+// served here. It is static: the page replays a recorded run from a JSON file and never talks
+// to the API, the model or the settings.
+
+const LANDING_DIR = path.resolve('dist/landing');
+const LANDING_HEADERS = {
+  'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+};
+
+function landingRoutes(app: Hono) {
+  const send = (c: Context, rel: string, cache: string) => {
+    const p = path.resolve(LANDING_DIR, rel);
+    if (!p.startsWith(LANDING_DIR + path.sep) || !fs.existsSync(p) || !fs.statSync(p).isFile()) return c.text('Not found', 404);
+    const ext = path.extname(p).toLowerCase();
+    // The site a recorded run built is agent-written HTML, so it gets the same sandbox as /s/<slug>/.
+    const headers = rel.startsWith('demo/') && ext === '.html' ? SITE_HEADERS : { ...LANDING_HEADERS, 'cache-control': cache };
+    return c.body(new Uint8Array(fs.readFileSync(p)), 200, { ...headers, 'content-type': MIME[ext] ?? (ext === '.woff2' ? 'font/woff2' : 'application/octet-stream') });
+  };
+  app.get('/', (c) => (fs.existsSync(path.join(LANDING_DIR, 'index.html'))
+    ? send(c, 'index.html', 'no-cache')
+    : c.text('Nightshift public endpoint')));
+  // Vite names these by content hash, so they can be cached for good.
+  app.get('/assets/*', (c) => send(c, decodeURIComponent(c.req.path.slice(1)), 'public, max-age=31536000, immutable'));
+  app.get('/demo/*', (c) => send(c, decodeURIComponent(c.req.path.slice(1)), 'no-cache'));
+}
+
 const publicApp = new Hono();
 publicRoutes(publicApp);
-publicApp.get('/', (c) => c.text('Nightshift public endpoint'));
+landingRoutes(publicApp);
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
   console.log(`☾ Nightshift dashboard  http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}${PROD ? '' : '  (dev UI: http://localhost:5173)'}`);

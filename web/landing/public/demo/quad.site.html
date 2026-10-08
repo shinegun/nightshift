@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quad — Study groups that form around your courses and your free hours</title>
+<meta name="description" content="Quad matches you with three to five classmates in the same course who are free at the same time, then gives the group one recurring time and a place to meet.">
+<meta name="theme-color" content="#faf8f3">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231c1b19'/%3E%3Ctext x='16' y='23' font-family='system-ui,sans-serif' font-size='18' font-weight='700' fill='%23faf8f3' text-anchor='middle'%3EQ%3C/text%3E%3C/svg%3E">
+<style>:root{
+  --bg:#faf8f3;
+  --surface:#ffffff;
+  --ink:#1c1b19;
+  --muted:#57544c;
+  --line:#e3ddd1;
+  --accent:#2c5f4f;
+  --accent-ink:#1f463a;
+  --accent-soft:#e8f0ec;
+  --radius:10px;
+  --wrap:44rem;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font:400 1rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+
+a{color:var(--accent-ink)}
+a:hover{text-decoration-thickness:2px}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+.skip{position:absolute;left:-9999px}
+.skip:focus{
+  left:1rem;top:1rem;z-index:10;
+  background:var(--surface);color:var(--ink);
+  padding:.6rem 1rem;border-radius:var(--radius);
+  box-shadow:0 2px 10px rgba(28,27,25,.15);
+}
+
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 1.25rem}
+
+/* Header */
+.site-header{border-bottom:1px solid var(--line)}
+.site-header .wrap{
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding-top:.9rem;padding-bottom:.9rem;
+}
+.wordmark{font-size:1.15rem;font-weight:700;letter-spacing:-.01em;text-decoration:none;color:var(--ink)}
+.header-cta{font-size:.95rem;font-weight:600;text-decoration:none}
+.header-links{display:flex;align-items:center;gap:1.1rem}
+.header-link{font-size:.95rem;text-decoration:none;color:var(--muted)}
+.header-link:hover{color:var(--accent-ink)}
+
+/* Hero */
+.hero{padding:2.75rem 0 2.5rem}
+.eyebrow{
+  margin:0 0 .85rem;
+  font-size:.78rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent-ink);
+}
+h1{
+  margin:0 0 1rem;
+  font-size:clamp(1.9rem,6.5vw,3rem);
+  line-height:1.1;letter-spacing:-.02em;
+}
+.lede{
+  margin:0 0 1.75rem;
+  max-width:34rem;
+  font-size:clamp(1.05rem,2.6vw,1.2rem);
+  color:var(--muted);
+}
+
+/* Forms */
+form[data-waitlist]{display:flex;flex-direction:column;gap:.6rem;max-width:30rem;margin-top:1.5rem}
+.hero form[data-waitlist]{margin-top:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+input[type=email]{
+  width:100%;
+  padding:.85rem 1rem;
+  font:inherit;color:var(--ink);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+input[type=email]::placeholder{color:#8b857a}
+
+button{
+  padding:.85rem 1.35rem;
+  font:inherit;font-weight:600;
+  color:#fff;
+  background:var(--accent);
+  border:0;border-radius:var(--radius);
+  cursor:pointer;
+}
+button:hover{background:var(--accent-ink)}
+
+.form-note{margin:.9rem 0 0;font-size:.88rem;color:var(--muted)}
+
+@media (min-width:34rem){
+  form[data-waitlist]{flex-direction:row;align-items:center}
+  input[type=email]{flex:1 1 auto}
+  button{white-space:nowrap}
+}
+
+/* Sections */
+.section{padding:2.5rem 0;border-top:1px solid var(--line)}
+.section h2{
+  margin:0 0 1rem;
+  font-size:clamp(1.4rem,4.2vw,1.9rem);
+  line-height:1.2;letter-spacing:-.015em;
+}
+.section p{margin:0;max-width:38rem;color:var(--muted)}
+.section p + p{margin-top:1rem}
+.sources{font-size:.85rem}
+
+/* Feature cards */
+.features{
+  list-style:none;margin:1.5rem 0 0;padding:0;
+  display:grid;gap:1rem;
+  grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));
+}
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:1.25rem;
+}
+.card h3{margin:0 0 .4rem;font-size:1.05rem;line-height:1.3}
+.card p{margin:0;font-size:.97rem;color:var(--muted)}
+
+/* Steps */
+.steps{counter-reset:step;list-style:none;margin:1.5rem 0 0;padding:0;display:grid;gap:1.4rem}
+.steps li{position:relative;padding-left:2.9rem}
+.steps li::before{
+  counter-increment:step;content:counter(step);
+  position:absolute;left:0;top:-.05rem;
+  width:2rem;height:2rem;
+  display:grid;place-items:center;
+  font-size:.9rem;font-weight:700;
+  color:var(--accent-ink);background:var(--accent-soft);
+  border-radius:50%;
+}
+.steps h3{margin:0 0 .25rem;font-size:1.05rem;line-height:1.3}
+.steps p{margin:0;font-size:.97rem;color:var(--muted)}
+
+.section .callout{
+  margin-top:1.5rem;
+  padding:1rem 1.15rem;
+  font-size:.95rem;
+  color:var(--accent-ink);
+  background:var(--accent-soft);
+  border-radius:12px;
+}
+
+/* FAQ */
+.faq{margin-top:1rem;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line)}
+summary{
+  display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
+  padding:1rem 0;
+  font-weight:600;
+  cursor:pointer;
+  list-style:none;
+}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--accent);font-size:1.2rem;line-height:1}
+details[open] summary::after{content:"\2212"}
+summary:hover{color:var(--accent-ink)}
+details p{margin:0 0 1.1rem;max-width:38rem;font-size:.97rem;color:var(--muted)}
+
+/* Bottom call to action */
+.cta{background:var(--accent-soft)}
+.cta h2{color:var(--accent-ink)}
+.section.cta p{color:var(--accent-ink)}
+.cta .form-note{color:var(--accent-ink);opacity:.85}
+.cta input[type=email]{border-color:#cfe0d7}
+
+/* Footer */
+.site-footer{border-top:1px solid var(--line);padding:2rem 0;font-size:.9rem;color:var(--muted)}
+.site-footer p{margin:0;max-width:38rem}
+.site-footer p + p{margin-top:.5rem}
+.footer-mark{font-weight:700;color:var(--ink)}
+
+@media (min-width:48rem){
+  .hero{padding:4rem 0 3.5rem}
+  .section{padding:3.25rem 0}
+}
+
+/* Home page: pointer to the demo */
+.hero-demo{
+  margin:1.25rem 0 0;
+  padding:.9rem 1rem;
+  max-width:30rem;
+  font-size:.92rem;
+  color:var(--accent-ink);
+  background:var(--accent-soft);
+  border-radius:12px;
+}
+.hero-demo a{font-weight:600}
+
+/* ---------- Match demo page ---------- */
+.demo-hero{padding-bottom:1.5rem}
+.demo-disclaimer{
+  margin:1.5rem 0 0;
+  padding:.9rem 1rem;
+  max-width:34rem;
+  font-size:.9rem;
+  color:var(--muted);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+.demo-wrap{padding-bottom:2rem}
+.demo-loading,.demo-error{margin:2rem 0;font-size:.95rem;color:var(--muted)}
+.demo-error{color:#8a3b2e}
+
+.step-block{padding:2rem 0;border-top:1px solid var(--line)}
+.step-block h2{
+  display:flex;align-items:center;gap:.7rem;
+  margin:0 0 .5rem;
+  font-size:clamp(1.15rem,3.6vw,1.4rem);
+  line-height:1.2;letter-spacing:-.01em;
+}
+.step-num{
+  flex:none;width:1.75rem;height:1.75rem;
+  display:grid;place-items:center;
+  font-size:.85rem;font-weight:700;
+  color:var(--accent-ink);background:var(--accent-soft);
+  border-radius:50%;
+}
+.step-help{margin:.25rem 0 0;max-width:34rem;font-size:.95rem;color:var(--muted)}
+.field-note{margin:.85rem 0 0;font-size:.88rem;color:var(--muted)}
+.field-note strong{color:var(--ink)}
+
+/* Campus choice */
+.campus-options{display:grid;gap:.75rem;margin-top:1rem}
+@media (min-width:34rem){.campus-options{grid-template-columns:1fr 1fr}}
+.option{position:relative;display:block;cursor:pointer}
+.option input{position:absolute;width:1px;height:1px;opacity:0}
+.option-body{
+  display:block;height:100%;
+  padding:1rem;
+  font-size:.9rem;line-height:1.5;color:var(--muted);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+.option-body strong{display:block;margin-bottom:.3rem;font-size:.98rem;color:var(--ink)}
+.option input:checked + .option-body{border-color:var(--accent);background:var(--accent-soft)}
+.option input:checked + .option-body strong{color:var(--accent-ink)}
+.option input:focus-visible + .option-body{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Course chips */
+input[type=search]{
+  display:block;width:100%;max-width:22rem;
+  margin-top:1rem;padding:.7rem .9rem;
+  font:inherit;font-size:.95rem;color:var(--ink);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.course-list{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.9rem}
+.course-chip{
+  padding:.6rem .85rem;
+  font:inherit;text-align:left;
+  color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;
+  cursor:pointer;
+}
+.course-chip strong{display:block;font-size:.9rem}
+.course-chip span{display:block;font-size:.8rem;color:var(--muted)}
+.course-chip .chip-note{margin-top:.15rem;font-size:.75rem;color:#8b857a}
+.course-chip:hover{background:#f2efe8}
+.course-chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent)}
+.course-chip[aria-pressed=true] strong{color:var(--accent-ink)}
+.course-chip[aria-pressed=true]:hover{background:#ddeae3}
+.course-chip[disabled]{opacity:.45;cursor:not-allowed}
+.course-chip[disabled]:hover{background:var(--surface)}
+
+/* Free-hours grid */
+.hours-scroll{overflow-x:auto;padding-bottom:.4rem;margin-top:1rem}
+.hours-grid{
+  display:grid;
+  grid-template-columns:2.5rem repeat(7,minmax(2rem,1fr));
+  gap:3px;
+  min-width:19rem;
+}
+.hours-grid .head{
+  padding-bottom:.25rem;
+  font-size:.72rem;font-weight:600;text-align:center;color:var(--muted);
+}
+.hours-grid .hour{
+  display:flex;align-items:center;justify-content:flex-end;
+  padding-right:.35rem;
+  font-size:.68rem;color:var(--muted);
+}
+.cell{
+  height:2.35rem;min-width:2rem;padding:0;
+  font-size:.6rem;font-weight:600;color:#b0a99b;
+  background:var(--surface);
+  border:1px solid var(--line);border-radius:6px;
+  cursor:pointer;
+}
+.cell:hover{background:#f2efe8}
+.cell[aria-pressed=true]{color:#fff;background:var(--accent);border-color:var(--accent)}
+.cell[aria-pressed=true]:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+
+.presets{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+.preset{
+  padding:.5rem .75rem;
+  font:inherit;font-size:.8rem;font-weight:500;
+  color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:999px;
+  cursor:pointer;
+}
+.preset:hover{background:var(--accent-soft);color:var(--accent-ink)}
+
+.demo-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.75rem}
+.btn-quiet{
+  padding:.85rem 1.1rem;font-weight:600;
+  color:var(--accent-ink);background:transparent;
+  border:1px solid var(--line);border-radius:var(--radius);
+  cursor:pointer;
+}
+.btn-quiet:hover{background:var(--surface)}
+
+/* Results */
+.results-block{padding-top:2rem}
+.results-block h2{
+  margin:0 0 .75rem;
+  font-size:clamp(1.15rem,3.6vw,1.4rem);
+  line-height:1.2;letter-spacing:-.01em;
+}
+.result-summary{margin:0 0 1rem;max-width:38rem;font-size:1rem;color:var(--muted)}
+.result-summary strong{color:var(--ink)}
+.result-group{
+  margin-top:1rem;
+  padding:1.25rem;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:14px;
+}
+.result-group.is-primary{border-color:var(--accent)}
+.result-group.is-miss{background:transparent}
+.result-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem}
+.result-head h3{margin:0;font-size:1rem;line-height:1.3}
+.badge{
+  flex:none;
+  padding:.2rem .5rem;
+  font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent-ink);background:var(--accent-soft);
+  border-radius:999px;
+}
+.badge.soft{color:var(--muted);background:#efece5}
+.result-row{margin:.9rem 0 0;font-size:.95rem;color:var(--muted)}
+.result-row .label{
+  display:block;
+  font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent-ink);
+}
+.result-row .value{font-weight:600;color:var(--ink)}
+.result-course{font-size:.85rem;color:var(--muted)}
+.members{list-style:none;margin:1rem 0 0;padding:0;display:grid;gap:.55rem}
+.member{display:flex;gap:.6rem;align-items:baseline;font-size:.92rem}
+.member .dot{
+  flex:none;width:1.6rem;height:1.6rem;
+  display:grid;place-items:center;
+  font-size:.7rem;font-weight:700;
+  color:var(--accent-ink);background:var(--accent-soft);
+  border-radius:50%;
+}
+.member-meta{font-size:.85rem;color:var(--muted)}
+.result-foot{margin:.9rem 0 0;font-size:.85rem;color:var(--muted)}
+
+/* How matching works + closing card */
+.how-match{margin-top:2rem;border-top:1px solid var(--line)}
+.how-match ul{margin:0 0 1rem;padding-left:1.15rem;max-width:38rem;font-size:.95rem;color:var(--muted)}
+.how-match li + li{margin-top:.5rem}
+.how-match li strong{color:var(--ink)}
+.demo-cta-card{
+  margin-top:2rem;padding:1.5rem;
+  background:var(--accent-soft);
+  border-radius:14px;
+}
+.demo-cta-card h2{margin:0 0 .5rem;font-size:clamp(1.2rem,3.8vw,1.5rem);line-height:1.2;color:var(--accent-ink)}
+.demo-cta-card p{margin:0;max-width:34rem;font-size:.95rem;color:var(--accent-ink)}
+.demo-cta-card input[type=email]{border-color:#cfe0d7}
+
+/* ---------- Full waitlist signup form (home page) ---------- */
+form.signup-form{
+  display:grid;
+  align-items:stretch;
+  gap:1.15rem;
+  max-width:32rem;
+  margin-top:1.5rem;
+}
+.signup-field{display:flex;flex-direction:column;gap:.35rem}
+.signup-field label{font-size:.92rem;font-weight:600;line-height:1.3}
+.signup-field .optional{font-weight:400;color:var(--muted)}
+.signup-field input{
+  width:100%;
+  padding:.8rem .95rem;
+  font:inherit;color:var(--ink);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.signup-field input::placeholder{color:#8b857a}
+.signup-field .field-hint{margin:0;font-size:.82rem;line-height:1.45;color:var(--muted)}
+form.signup-form button{justify-self:start}
+.cta .signup-field input{border-color:#cfe0d7}
+.cta .signup-field .field-hint{color:var(--accent-ink);opacity:.85}
+.cta .signup-field .optional{color:var(--accent-ink);opacity:.85}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="wordmark" href="index.html">Quad</a>
+    <div class="header-links">
+      <a class="header-link" href="demo.html">Match demo</a>
+      <a class="header-cta" href="#join">Join the waitlist</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Course-matched study groups</p>
+      <h1>Study groups that form around your courses and your free hours.</h1>
+      <p class="lede">You add the courses you're taking and the hours you're usually free. Quad puts three to five classmates who share both into one group, with a recurring time and a place to meet.</p>
+
+      <form data-waitlist>
+        <label class="sr-only" for="email-hero">Your university email address</label>
+        <input id="email-hero" name="email" type="email" placeholder="you@university.edu" autocomplete="email" required
+               pattern="[^@\s]+@[^@\s]+\.(edu|edu\.[a-z]{2}|ac\.[a-z]{2})"
+               title="Use your university email address, for example you@university.edu">
+        <button type="submit">Join the waitlist</button>
+      </form>
+      <p class="form-note">We're opening one campus at a time. Join the list with your university email and we'll email you when Quad gets to yours. To be ready to match, <a href="#join">add your courses and free hours</a>.</p>
+      <p class="hero-demo">Not sure what that looks like? <a href="demo.html">Try the match demo</a>: pick two courses, mark your free hours, and watch a group land with a time and a place. About a minute, no signup.</p>
+    </div>
+  </section>
+
+  <section class="section" id="problem">
+    <div class="wrap">
+      <h2>Wanting to study with someone isn't the hard part</h2>
+      <p>In one course-level study, 78 percent of students joined at least one group study session in a semester, a median of four sessions. Asked why they turned up, they said a professor encouraged it or a classmate invited them.</p>
+      <p>So the problem is the invitation. Study groups happen when somebody asks, and asking depends on luck: sitting next to the right person, mentioning that you're free Thursday. In an intro lecture of 200 people, that luck runs out fast.</p>
+      <p>Loneliness is measured and widespread. Fifty-two percent of students reported high loneliness in the 2024-25 Healthy Minds Study. Quad isn't a fix for that. It's the smaller thing that's easier to arrange: an hour on Tuesday when someone in your course expects you in a library room.</p>
+      <p>The tools that exist solve half the problem. Discord servers, GroupMe threads and class chats are good at finding people in your course. None of them will tell you who's free Tuesday at two and turn that into a standing meeting. That last step is Quad.</p>
+      <p class="sources">Sources: <a href="https://www.facultyfocus.com/articles/course-design-ideas/what-students-can-learn-from-studying-together" rel="noopener">Faculty Focus</a> on group study participation, <a href="https://sph.umich.edu/news/2025posts/college-student-mental-health-third-consecutive-year-improvement.html" rel="noopener">Healthy Minds Study 2024-25</a> on loneliness.</p>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <h2>What Quad does</h2>
+      <ul class="features">
+        <li class="card">
+          <h3>Matched on two things</h3>
+          <p>Your courses, and the hours you're usually free. No personality quiz, no popularity, no feed of who's online right now.</p>
+        </li>
+        <li class="card">
+          <h3>Three to five people, one standing time</h3>
+          <p>Your group gets a recurring slot that works for everyone, plus a suggested spot: a library room or a cafe near campus.</p>
+        </li>
+        <li class="card">
+          <h3>Quiet by design</h3>
+          <p>A group chat for rescheduling, and a way to leave a group that isn't working. Nothing to scroll, no follower counts.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>
+          <h3>Sign in with your university email</h3>
+          <p>Verification only. Quad doesn't connect to your school's student records or course system.</p>
+        </li>
+        <li>
+          <h3>Add this term's courses</h3>
+          <p>Course names are enough. No grades, no assignments, no transcripts.</p>
+        </li>
+        <li>
+          <h3>Mark the hours you're usually free</h3>
+          <p>Tuesday and Thursday afternoons, or the gap between two lectures.</p>
+        </li>
+        <li>
+          <h3>Get your group</h3>
+          <p>Once enough classmates in the same course overlap with you, three to five of you land in a group with a time and a place.</p>
+        </li>
+      </ol>
+      <p class="callout">Matching takes more than one person. If your course doesn't have enough Quad students yet, we'll tell you that instead of dropping you into a group that never meets.</p>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap">
+      <h2>Questions we get asked</h2>
+      <div class="faq">
+        <details>
+          <summary>Which campus are you starting with?</summary>
+          <p>One big public university with intro lectures of a few hundred students, because that's where there are enough classmates to match. We're confirming it now and will name it once it's settled. Join the waitlist and we'll email you if it's yours.</p>
+        </details>
+        <details>
+          <summary>What does Quad know about me?</summary>
+          <p>Your name, your university email, your school, the courses you're taking, and the hours you're free. That's the whole list. Quad doesn't read your student records, and you can delete your account whenever you want.</p>
+        </details>
+        <details>
+          <summary>How many people end up in a group?</summary>
+          <p>Three to five, all in the same course. Small enough that everyone talks, big enough to survive one person getting sick.</p>
+        </details>
+        <details>
+          <summary>What if nobody in my course is free when I am?</summary>
+          <p>Then there's no group for you yet, and we'll say so. We'd rather tell you that than put you in something that quietly stops meeting. You'll see how many classmates in your course are on Quad, and we'll email you when the overlap is there.</p>
+        </details>
+        <details>
+          <summary>Where do groups meet?</summary>
+          <p>Public places: library rooms, cafes near campus. Quad never suggests a home address, and you can report or block anyone in your group.</p>
+        </details>
+        <details>
+          <summary>Does it cost anything?</summary>
+          <p>Being matched into a group is free. If we ever add paid extras, they'd be things a group organizer wants, like a private room, and we'd say so before charging anyone.</p>
+        </details>
+        <details>
+          <summary>Do I have to be friends with my group?</summary>
+          <p>No. Plenty of people want a study group and not a friend group. Show up, work for two hours, go home.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section cta" id="join">
+    <div class="wrap">
+      <h2>Join the waitlist</h2>
+      <p>Quad opens one campus at a time. Tell us your courses and the hours you're usually free, and we'll email you the moment there's a group to put you in.</p>
+      <form data-waitlist class="signup-form">
+        <div class="signup-field">
+          <label for="signup-name">Your name</label>
+          <input id="signup-name" name="name" type="text" autocomplete="name" placeholder="First and last name" required>
+        </div>
+        <div class="signup-field">
+          <label for="signup-email">University email</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required
+                 pattern="[^@\s]+@[^@\s]+\.(edu|edu\.[a-z]{2}|ac\.[a-z]{2})"
+                 title="Use your university email address, for example you@university.edu"
+                 aria-describedby="signup-email-hint">
+          <p class="field-hint" id="signup-email-hint">We use it to check you're a student, and to email you about your group. Nothing else.</p>
+        </div>
+        <div class="signup-field">
+          <label for="signup-school">Your school</label>
+          <input id="signup-school" name="school" type="text" placeholder="Which university do you go to?" required>
+        </div>
+        <div class="signup-field">
+          <label for="signup-courses">Courses you're taking this term</label>
+          <input id="signup-courses" name="courses" type="text" placeholder="e.g. Calculus I, Intro to Psychology, US History" required
+                 aria-describedby="signup-courses-hint">
+          <p class="field-hint" id="signup-courses-hint">Course names are enough. The big ones matter most, because that's where there are enough classmates to form a group.</p>
+        </div>
+        <div class="signup-field">
+          <label for="signup-hours">Hours you're usually free <span class="optional">(optional)</span></label>
+          <input id="signup-hours" name="free_hours" type="text" placeholder="e.g. Tuesdays and Thursdays, 2 to 5pm"
+                 aria-describedby="signup-hours-hint">
+          <p class="field-hint" id="signup-hours-hint">Rough is fine. If you'd rather not type it now, reply to the confirmation email with your hours instead.</p>
+        </div>
+        <button type="submit">Join the waitlist</button>
+      </form>
+      <p class="form-note">You'll get a confirmation email right away. It explains what happens next and asks you to reply with your free hours, so we can match you by hand while the automatic matching is still being built.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="footer-mark">Quad</p>
+    <p>Study groups that form around your courses and your free hours. In development: no groups are meeting yet.</p>
+    <p><a href="demo.html">Try the match demo</a> &middot; <a href="mailto:team+quad@nightshift-demo.example">team+quad@nightshift-demo.example</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
